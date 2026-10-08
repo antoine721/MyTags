@@ -16,27 +16,32 @@ struct WaveformBar: View {
         let progress = player.currentTrackID == track.id ? min(1, player.currentTime / duration) : 0
         let marker = min(1, app.settings.startPoint.seconds(for: track) / duration)
         HStack(spacing: 10) {
+            // The waveform comes with the catalogue: it stays visible, dimmed, while the audio is missing.
+            let unavailable = player.currentTrackID == track.id && player.availability == .unavailable
             ZStack {
-                if case .unavailable = player.availability, player.currentTrackID == track.id {
+                GeometryReader { proxy in
+                    Canvas { context, size in
+                        draw(in: context, size: size, progress: progress)
+                    }
+                    .overlay(alignment: .leading) {
+                        Rectangle()
+                            .fill(Color.primary.opacity(0.55))
+                            .frame(width: 1.5, height: proxy.size.height)
+                            .offset(x: proxy.size.width * marker)
+                            .accessibilityHidden(true)
+                    }
+                    .contentShape(Rectangle())
+                    .gesture(scrub(width: proxy.size.width, duration: duration, marker: marker))
+                }
+                .opacity(unavailable ? 0.3 : 1)
+                .allowsHitTesting(!unavailable)
+                if unavailable {
                     Text(app.sync.isOnline ? "Audio indisponible" : "Audio indisponible hors ligne")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    GeometryReader { proxy in
-                        Canvas { context, size in
-                            draw(in: context, size: size, progress: progress)
-                        }
-                        .overlay(alignment: .leading) {
-                            Rectangle()
-                                .fill(Color.primary.opacity(0.55))
-                                .frame(width: 1.5, height: proxy.size.height)
-                                .offset(x: proxy.size.width * marker)
-                                .accessibilityHidden(true)
-                        }
-                        .contentShape(Rectangle())
-                        .gesture(scrub(width: proxy.size.width, duration: duration, marker: marker))
-                    }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(Color(uiColor: .systemBackground), in: Capsule())
                 }
             }
             .frame(height: 40)
