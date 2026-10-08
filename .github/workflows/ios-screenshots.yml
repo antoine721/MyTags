@@ -1,6 +1,7 @@
 name: ios-screenshots
 
-# Screenshots of the app on demo data (light and dark), uploaded as the "ios-screenshots" artifact.
+# Screenshots of the app on demo data (light and dark): uploaded as the "ios-screenshots" artifact and
+# stored, as JPEG, in docs/captures/ on the same branch.
 on:
   workflow_dispatch:
   push:
@@ -15,6 +16,8 @@ jobs:
   screenshots:
     runs-on: macos-26
     timeout-minutes: 40
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
       - name: Select the newest Xcode 26
@@ -77,3 +80,23 @@ jobs:
         with:
           name: ios-screenshots
           path: screenshots/
+      - name: Store in docs/captures
+        run: |
+          shopt -s nullglob
+          shots=(screenshots/*.png)
+          [ ${#shots[@]} -gt 0 ] || { echo "no screenshot"; exit 1; }
+          mkdir -p docs/captures
+          rm -f docs/captures/*.jpg
+          for f in "${shots[@]}"; do
+            sips -s format jpeg -s formatOptions 75 -Z 1400 "$f" --out "docs/captures/$(basename "${f%.png}").jpg" >/dev/null
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/captures
+          git diff --cached --quiet && exit 0
+          git commit -m "docs: app screenshots on demo data (light and dark)"
+          for i in 1 2 3; do
+            git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && exit 0
+            sleep 5
+          done
+          exit 1
