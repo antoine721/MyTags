@@ -1,0 +1,8 @@
+#include "Base.xcconfig"
+#include "Signing.xcconfig"
+
+PRODUCT_NAME = MyTagsUITests
+PRODUCT_BUNDLE_IDENTIFIER = $(APP_BUNDLE_ID).uitests
+GENERATE_INFOPLIST_FILE = YES
+CODE_SIGN_STYLE = Automatic
+TEST_TARGET_NAME = MyTags

@@ -47,27 +47,32 @@ struct LibraryView: View {
             .safeAreaInset(edge: .bottom) { bottomBar }
         }
         .onAppear { model.refresh(store: app.store) }
-        .onChange(of: app.store.dataVersion) { model.refresh(store: app.store) }
+        .onChange(of: app.store.dataVersion) {
+            // Under the Tag screen the list is invisible: recompute once it closes.
+            if !app.isTagScreenPresented { model.refresh(store: app.store) }
+        }
+        .onChange(of: app.isTagScreenPresented) { model.refresh(store: app.store) }
         .onChange(of: model.filter) { model.refresh(store: app.store) }
         .onChange(of: model.sort) { model.refresh(store: app.store) }
         .onChange(of: model.searchText) { model.refresh(store: app.store) }
         .sheet(isPresented: $showingFilters) {
-            FilterSheet(model: model)
+            FilterSheet(model: model).environment(app)
         }
         .sheet(isPresented: $showingSettings) {
-            SettingsView()
+            SettingsView().environment(app)
         }
         .sheet(isPresented: $showingTrip) {
-            PrepareTripSheet(defaultIDs: model.results, title: model.queueTitle(store: app.store))
+            PrepareTripSheet(defaultIDs: model.results, title: model.queueTitle(store: app.store)).environment(app)
         }
         .sheet(isPresented: $showingSetValue) {
             SetValueSheet(trackIDs: Array(selection)) {
                 selection.removeAll()
                 editMode = .inactive
             }
+            .environment(app)
         }
         .sheet(item: $artistSheet) { artist in
-            ArtistSheet(artist: artist)
+            ArtistSheet(artist: artist).environment(app)
         }
         .sheet(item: Binding(get: { app.sessionSummary }, set: { app.sessionSummary = $0 })) { summary in
             SessionSummaryView(summary: summary)
@@ -83,6 +88,7 @@ struct LibraryView: View {
             TrackRowView(snapshot: snapshot, track: track)
         }
         .foregroundStyle(.primary)
+        .accessibilityIdentifier("trackRow")
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
         .tag(snapshot.id)
         .contextMenu {
