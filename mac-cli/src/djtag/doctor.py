@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 from dataclasses import dataclass
@@ -33,10 +34,7 @@ def run_doctor(settings: Settings) -> list[Check]:
     cfg = config_path()
     checks.append(Check("Configuration", cfg.exists(), str(cfg) if cfg.exists() else "lancer `djtag init`"))
     for folder in settings.music_folders:
-        exists = folder.expanduser().exists()
-        checks.append(
-            Check(f"Dossier {folder}", exists, "présent" if exists else "introuvable (disque débranché ?)")
-        )
+        checks.append(_folder_check(folder.expanduser()))
     checks.append(
         Check(
             "Propriétaire POPM",
@@ -47,7 +45,9 @@ def run_doctor(settings: Settings) -> list[Check]:
     )
     token = admin_token()
     if not settings.api_url or not token:
-        checks.append(Check("Cloud", False, "lancer `djtag login --api <url>`"))
+        checks.append(
+            Check("Cloud", False, "lancer `djtag login --api <url>` (normal avant la mise en place du cloud)")
+        )
     else:
         try:
             with Api(settings.api_url, token, timeout=15) as api:
@@ -88,3 +88,19 @@ def _leftover_temp_files(settings: Settings) -> list[Path]:
         if root.exists():
             found.extend(root.rglob("*.djtag-tmp*"))
     return found
+
+
+def _folder_check(folder: Path) -> Check:
+    if not folder.exists():
+        return Check(f"Dossier {folder}", False, "introuvable (disque débranché ?)")
+    try:
+        next(os.scandir(folder), None)
+    except PermissionError:
+        # macOS privacy: without this, every scan silently finds nothing.
+        return Check(
+            f"Dossier {folder}",
+            False,
+            "lecture refusée : Réglages Système › Confidentialité et sécurité › Fichiers et dossiers "
+            "(ou Accès complet au disque) › autoriser Terminal",
+        )
+    return Check(f"Dossier {folder}", True, "lisible")

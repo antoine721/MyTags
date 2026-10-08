@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import platform
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any, NoReturn
@@ -102,7 +104,11 @@ def login(
     token: Annotated[str | None, typer.Option(help="Jeton administrateur (sinon demandé).")] = None,
 ) -> None:
     """Enregistre l'adresse de l'API et le jeton administrateur (trousseau macOS)."""
-    token = token or typer.prompt("Jeton administrateur", hide_input=True)
+    if not token:
+        console.print(
+            "Coller le jeton affiché par setup.sh (rien ne s'affiche pendant la saisie), puis Entrée."
+        )
+        token = str(typer.prompt("Jeton administrateur", hide_input=True)).strip()
     try:
         with Api(api_url, token, timeout=20) as api:
             me = api.me()
@@ -115,12 +121,17 @@ def login(
                 api.reset_config(load_default_config_json())
                 console.print("Configuration de départ des champs chargée dans le cloud.")
     except ApiError as exc:
-        _fail(f"connexion impossible : {exc.message}")
+        _fail(
+            f"connexion impossible : {exc.message}. Un Worker tout juste déployé peut mettre quelques minutes "
+            "à répondre : réessayer un peu plus tard."
+        )
     settings_mod.store_admin_token(token)
     s = _settings()
     s.api_url = api_url.rstrip("/")
     settings_mod.save(s)
-    console.print("[green]✓[/] Connecté. Prochaine étape : `djtag pair` pour connecter l'iPhone.")
+    console.print(
+        "[green]✓[/] Connecté. Prochaine étape : `uv run djtag import --limit 50`, puis `uv run djtag pair`."
+    )
 
 
 @app.command()
@@ -385,7 +396,7 @@ def apply(
                 ctx = ApplyContext(s, api, cloud, state, plan, False, lambda d, t: update("Copies", d, t))
                 with progress:
                     trial = run_trial(ctx, copy_to)
-                _trial_summary(trial, as_json)
+                _trial_summary(trial, bool(plan.conflicts), as_json)
             if not yes and not dry_run:
                 console.print(
                     f"{len(plan.items)} morceaux vont être écrits : "
@@ -431,10 +442,16 @@ def apply(
     raise typer.Exit(code)
 
 
-def _trial_summary(run: Any, as_json: bool) -> NoReturn:
+def _trial_summary(run: Any, plan_conflicts: bool, as_json: bool) -> NoReturn:
     from .apply import TRIAL_CHECK
 
-    code = EXIT_ERROR if run.count("error") else EXIT_CONFLICTS if run.count("conflict") else EXIT_OK
+    code = (
+        EXIT_ERROR
+        if run.count("error")
+        else EXIT_CONFLICTS
+        if run.count("conflict") or plan_conflicts
+        else EXIT_OK
+    )
     if as_json:
         emit_json({"ok": code == EXIT_OK, **run.to_json(), "serato_check": TRIAL_CHECK})
     else:
@@ -535,9 +552,25 @@ def pair(name: Annotated[str, typer.Option(help="Nom de l'appareil.")] = "iPhone
         _fail(f"cloud : {exc.message}")
     payload = "mytags://pair?" + urllib.parse.urlencode({"api": s.api_url, "token": device["token"]})
     qr = segno.make(payload, error="m")
-    qr.terminal(compact=True)
+    _print_qr(qr)
+    image = settings_mod.work_dir() / "pair-qr.png"
+    image.parent.mkdir(parents=True, exist_ok=True)
+    qr.save(str(image), scale=12, border=4)
+    if platform.system() == "Darwin":
+        subprocess.run(["open", str(image)], check=False)  # an image on screen scans best
     console.print("Scanner ce code dans l'app MyTags (ou coller le texte ci-dessous).")
     console.print(payload, soft_wrap=True)
+
+
+def _print_qr(qr: Any) -> None:
+    """Black modules on a white background whatever the Terminal theme (two rows per line)."""
+    rows = [[bool(v) for v in row] for row in qr.matrix_iter(scale=1, border=2)]
+    if len(rows) % 2:
+        rows.append([False] * len(rows[0]))
+    glyph = {(False, False): " ", (True, True): "█", (True, False): "▀", (False, True): "▄"}
+    for top, bottom in zip(rows[::2], rows[1::2], strict=True):
+        line = "".join(glyph[(a, b)] for a, b in zip(top, bottom, strict=True))
+        print(f"\x1b[30;107m{line}\x1b[0m")
 
 
 @devices_app.command("list")

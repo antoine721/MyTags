@@ -196,8 +196,10 @@ def test_trial_writes_verified_copies_and_changes_nothing_else(env, tmp_path):
     run = run_trial(ApplyContext(env["settings"], env["api"], cloud, env["state"], plan), dest)
     assert run.count("written") == len(FORMATS), run.outcomes
     assert {p: p.read_bytes() for p in env["music"].rglob("*") if p.is_file()} == library
+    folder = Path(run.backup_dir or "")
+    assert folder.parent == dest.resolve()
     for i, fmt in enumerate(FORMATS):
-        copy = dest / f"track{i}.{fmt}"
+        copy = folder / f"track{i}.{fmt}"
         original = env["music"] / "Shatta" / copy.name
         opts = env["settings"].tag_options
         assert preserved_digest(copy, fmt, opts) == preserved_digest(original, fmt, opts)
@@ -209,20 +211,39 @@ def test_trial_writes_verified_copies_and_changes_nothing_else(env, tmp_path):
     }
     assert len(build_plan(after, env["settings"]).items) == len(FORMATS)  # still to apply for real
     again = run_trial(ApplyContext(env["settings"], env["api"], after, env["state"], plan), dest)
-    assert (dest / "track0 (2).mp3").exists() and again.count("written") == len(FORMATS)
+    assert again.backup_dir != run.backup_dir and again.count("written") == len(FORMATS)
 
 
-def test_trial_refuses_a_folder_inside_the_library(env):
+def test_trial_refuses_a_folder_inside_the_library_or_serato(env, tmp_path):
     do_import(env)
     track, cloud = track_by_name(env, "track0.mp3")
     env["api"].push([phone_change(cloud, track["id"], "genre", "POP")])
     cloud = CloudState.load(env["api"])
     plan = build_plan(cloud, env["settings"])
-    with pytest.raises(ApplyRefused):
-        run_trial(
-            ApplyContext(env["settings"], env["api"], cloud, env["state"], plan), env["music"] / "essai"
-        )
-    assert not (env["music"] / "essai").exists()
+    other_case = env["music"].parent / env["music"].name.upper() / "essai"  # case-insensitive APFS spelling
+    for dest in (env["music"] / "essai", other_case, env["music"].parent, tmp_path / "_Serato_" / "essai"):
+        existed = dest.exists()
+        with pytest.raises(ApplyRefused):
+            run_trial(ApplyContext(env["settings"], env["api"], cloud, env["state"], plan), dest)
+        assert dest.exists() == existed and not list(dest.glob("essai-*"))
+
+
+def test_trial_never_leaves_a_broken_copy(env, tmp_path, monkeypatch):
+    import djtag.apply as apply_mod
+
+    do_import(env)
+    track, cloud = track_by_name(env, "track0.mp3")
+    env["api"].push([phone_change(cloud, track["id"], "genre", "POP")])
+    cloud = CloudState.load(env["api"])
+    plan = build_plan(cloud, env["settings"])
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(apply_mod, "write_managed", broken)
+    run = run_trial(ApplyContext(env["settings"], env["api"], cloud, env["state"], plan), tmp_path / "essai")
+    assert run.count("error") == 1
+    assert not list(Path(run.backup_dir or "").iterdir())
 
 
 def test_refuses_when_serato_is_open(env, monkeypatch):
