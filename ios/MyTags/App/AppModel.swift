@@ -58,7 +58,10 @@ final class AppModel {
         prefetcher = Prefetcher(
             store: store, downloader: downloader, cache: cache, covers: covers, sync: sync, settings: settings)
         sessions = SessionRecorder(database: database)
-        cache.onChange = { [weak self] ids in self?.store.offlineTrackIDs = ids }
+        cache.onChange = { [weak self] ids in
+            self?.store.offlineTrackIDs = ids
+            self?.player.reloadIfNowAvailable(ids)
+        }
         store.offlineTrackIDs = cache.offlineIDs
         sync.onUnauthorized = { [weak self] in self?.handleUnauthorized() }
         Haptics.shared.isEnabled = settings.hapticsEnabled

@@ -90,7 +90,11 @@ struct TagScreen: View {
             TransportControls(
                 onPrevious: { session.previous() }, onNext: { session.next() },
                 canGoBack: session.queue.hasPrevious)
-                // Over the transport row, never over the stars or the values (spec 9.2 height budget).
+                // The banner takes the transport row's place for 3 s (play/pause stays on the cover),
+                // never the stars or the values (spec 9.2 height budget).
+                .opacity(session.undo == nil ? 1 : 0)
+                .allowsHitTesting(session.undo == nil)
+                .accessibilityHidden(session.undo != nil)
                 .overlay { undoBanner }
                 .padding(.bottom, 8)
             Divider()
