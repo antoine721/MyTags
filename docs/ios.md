@@ -4,14 +4,16 @@ Ce document explique comment compiler l'app MyTags avec Xcode et l'installer sur
 
 ## Première installation
 
-1. Sur l'iPhone, activer **Réglages › Confidentialité et sécurité › Mode développeur**, puis redémarrer quand l'iPhone le demande.
-2. Sur le Mac, ouvrir `ios/MyTags.xcodeproj` dans Xcode 26.
-3. Dans **Xcode › Réglages › Comptes**, ajouter votre identifiant Apple : une équipe « Personal Team » apparaît.
-4. Ouvrir `ios/Config/Signing.xcconfig` et faire deux réglages :
-   - `DEVELOPMENT_TEAM` : l'identifiant de votre équipe. On le trouve en sélectionnant la cible MyTags › Signing & Capabilities, en choisissant l'équipe, puis en recopiant son identifiant ; on peut aussi laisser vide et choisir l'équipe dans l'interface.
-   - `APP_BUNDLE_ID` : un identifiant unique, par exemple `fr.<votre-nom>.mytags`.
-5. Brancher l'iPhone (la première fois en câble), le choisir comme destination, puis ⌘R.
-6. Sur l'iPhone, autoriser le développeur dans **Réglages › Général › VPN et gestion de l'appareil**.
+Le détail, avec les captures d'écran à attendre et les erreurs fréquentes : `docs/premiere-installation.md`, étape 7.
+
+1. Ouvrir Xcode une fois (licence, composants iOS), puis **Xcode › Réglages › Comptes** › **+** › Apple ID.
+2. Ouvrir `ios/MyTags.xcodeproj` et attendre la fin de « Resolving packages ».
+3. Brancher l'iPhone, le déverrouiller, **Se fier**, puis le choisir comme destination en haut de Xcode.
+4. Sur l'iPhone : **Réglages › Confidentialité et sécurité › Mode développeur** › activer › redémarrer. L'option n'apparaît qu'après l'étape 3.
+5. Cible **MyTags** › **Signing & Capabilities** › **Team** : « *Votre nom* (Personal Team) ». Rien d'autre à régler.
+6. **⌘R**. Sur l'iPhone, autoriser le développeur dans **Réglages › Général › VPN et gestion de l'appareil**, puis **⌘R** à nouveau.
+
+Si Xcode refuse l'identifiant de l'app, remplacer `APP_BUNDLE_ID` dans `ios/Config/Signing.xcconfig` par un identifiant à vous (par exemple `fr.votreprenom.mytags`).
 
 ## Toutes les semaines
 
@@ -24,8 +26,8 @@ Avec un compte gratuit, le certificat expire au bout de **7 jours** : l'app ne s
 
 Au premier lancement, l'app affiche un écran de connexion.
 
-1. Sur le Mac, lancer `uv run djtag pair` : un QR code s'affiche.
-2. Le scanner avec l'app. À défaut, copier le texte `mytags://pair?…`, l'envoyer sur l'iPhone (AirDrop, Notes), puis appuyer sur « Coller ».
+1. Sur le Mac, lancer `uv run djtag pair` : le QR code s'affiche dans le Terminal et en image.
+2. Le scanner avec l'app (autoriser la caméra). À défaut, copier le texte `mytags://pair?…`, l'envoyer sur l'iPhone (AirDrop, Notes), puis appuyer sur « Coller ».
 
 Le catalogue se télécharge (quelques Mo), puis les miniatures en Wi-Fi.
 

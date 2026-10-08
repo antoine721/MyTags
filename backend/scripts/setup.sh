@@ -12,6 +12,7 @@ BUCKET_NAME="mytags-audio"
 CONFIG="wrangler.jsonc"
 
 cd "$(dirname "$0")/.."
+MAC_CLI="$(cd ../mac-cli && pwd)"
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mErreur : %s\033[0m\n' "$*" >&2; exit 1; }
@@ -80,13 +81,18 @@ else
 fi
 
 # --- Database schema and Worker ----------------------------------------------
-say "Migrations de la base (distante)"
+say "Migrations de la base (distante) — répondre « y » si wrangler demande confirmation"
 wrangler d1 migrations apply "$DB_NAME" --remote
 
 # Deploy before setting the secret: `secret put` needs an existing Worker.
 # Without ADMIN_TOKEN every admin route refuses all tokens, so this is safe.
 say "Déploiement du Worker"
-DEPLOY_LOG="$(wrangler deploy 2>&1 | tee /dev/stderr)"
+if ! DEPLOY_LOG="$(wrangler deploy 2>&1 | tee /dev/stderr)"; then
+  if printf '%s' "$DEPLOY_LOG" | grep -qi "workers.dev subdomain"; then
+    fail "Ce compte n'a pas encore de sous-domaine workers.dev. Tableau de bord Cloudflare › Workers & Pages : en choisir un (ou ouvrir le lien affiché ci-dessus), puis relancer ce script."
+  fi
+  fail "Le déploiement a échoué (voir les messages ci-dessus), puis relancer ce script."
+fi
 API_URL="$(printf '%s\n' "$DEPLOY_LOG" | grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' | head -n 1 || true)"
 
 # --- ADMIN_TOKEN -------------------------------------------------------------
@@ -110,7 +116,17 @@ fi
 say "Terminé"
 if [ -n "$API_URL" ]; then
   echo "Adresse de l'API : $API_URL"
-  curl -fsS "$API_URL/v1/health" >/dev/null 2>&1 && echo "Vérification : $API_URL/v1/health répond." || true
+  echo "Attente de la mise en ligne (une nouvelle adresse peut prendre quelques minutes)…"
+  ONLINE=""
+  for _ in $(seq 1 36); do
+    if curl -fsS "$API_URL/v1/health" >/dev/null 2>&1; then ONLINE=1; break; fi
+    sleep 5
+  done
+  if [ -n "$ONLINE" ]; then
+    echo "Vérification : $API_URL/v1/health répond."
+  else
+    echo "L'API ne répond pas encore : attendre quelques minutes avant « djtag login »."
+  fi
 else
   echo "Adresse de l'API : voir la sortie de « wrangler deploy » ci-dessus (https://mytags-api.<sous-domaine>.workers.dev)."
   API_URL="https://mytags-api.<sous-domaine>.workers.dev"
@@ -124,7 +140,7 @@ Jeton administrateur (affiché une seule fois, il n'est enregistré nulle part) 
 
 Étape suivante, sur ce Mac :
 
-    djtag login --api $API_URL
+    cd "$MAC_CLI" && uv run djtag login --api $API_URL
 
 puis collez le jeton quand il est demandé (il sera rangé dans le trousseau macOS).
 EOF

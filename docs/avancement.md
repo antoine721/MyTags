@@ -44,16 +44,24 @@ Un agent séparé a relu `apply` et `rollback` en cherchant à les mettre en dé
 - doublons de COMMENT fusionnés, compteur d'écoutes POPM conservé, POPM d'un autre logiciel : seule la note est sautée ;
 - une seule application à la fois ; sauvegardes et manifeste vidés sur disque avant d'écrire.
 
+## Relecture d'ensemble avant la première installation
+
+Quatre relectures séparées : app iPhone face au cahier des charges, parcours de première installation, échanges entre l'app et le cloud (testés contre un vrai Worker), et essai sur copies. Corrigé :
+
+- **Règle R4** : `djtag apply --copy-to <dossier>` écrit les tags sur des copies hors de la bibliothèque, vérifiées, à comparer dans Serato ; ni la bibliothèque ni le cloud ne changent.
+- **Première installation** : version de Python fixée (3.13), `djtag --help` réparé, QR code lisible quel que soit le thème du Terminal (et ouvert en image), `doctor` signale un dossier de musique illisible (autorisation macOS), `setup.sh` explique le sous-domaine `workers.dev` et attend la mise en ligne, l'iOS est aussi compilé pour un vrai iPhone en CI.
+- **Synchronisation** : la valeur gagnante d'un conflit revient aussi sur l'appareil perdant ; un envoi refusé ne bloque plus la synchronisation ; plus de faux « hors ligne » durable ; téléchargements reprenables sûrs (`If-Range`).
+- **Écran Taguer et lecture** : voir le journal des modifications (`CHANGELOG.md`).
+
+Guide pas à pas : `docs/premiere-installation.md`.
+
 ## Prochaines étapes, dans l'ordre
 
-1. Installer les outils (`docs/outils.md`, sections 1 à 3).
-2. `uv run djtag audit --fingerprints --summary ../docs/audit.md`, puis régler `tags.popm_email`.
-3. Répondre aux questions restantes de la section 21 (voir plus bas).
-4. Backend : `backend/scripts/setup.sh`, puis `djtag login`.
-5. Installer l'app (`docs/ios.md`), puis l'essayer en démo.
-6. `djtag import --limit 50` : vérifier les covers et les points de départ sur 30 morceaux, puis `djtag import`.
-7. `djtag pair`, puis taguer.
-8. Première application sur une **copie** de 20 morceaux, contrôle dans Serato, puis le reste.
+1. Suivre `docs/premiere-installation.md` : outils, cloud, `djtag`, audit, import de 50 morceaux, app sur l'iPhone, connexion.
+2. Taguer quelques morceaux, puis `djtag apply --copy-to ~/Desktop/MyTags-essai --limit 20` et contrôle dans Serato (R4).
+3. Répondre aux questions restantes de la section 21 (voir plus bas), compléter les valeurs (Types, Pays) dans Réglages.
+4. `djtag import` pour toute la bibliothèque.
+5. Première vraie application avec Claude Code (« applique mes tags du train »), d'abord sur 20 morceaux.
 
 ## Questions encore ouvertes (section 21)
 
