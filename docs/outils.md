@@ -1,6 +1,6 @@
 # Outils et comptes à installer
 
-Ce document liste tout ce qu'il faut préparer, dans l'ordre. Comptez environ une heure la première fois, import de la bibliothèque non compris.
+Pour une première installation, suivre plutôt `docs/premiere-installation.md`, pas à pas. Ce document liste tout ce qu'il faut préparer, dans l'ordre. Comptez environ une heure la première fois, import de la bibliothèque non compris.
 
 ## Coûts
 
@@ -28,30 +28,31 @@ Versions minimales : macOS 15.6 ou plus récent et Xcode 26.
 ```bash
 # Homebrew (si absent) : https://brew.sh
 brew install uv ffmpeg chromaprint gh node
-npm install -g wrangler        # outil Cloudflare
 xcode-select --install          # outils en ligne de commande, si Xcode vient d'être installé
 ```
 
 | Outil | Sert à |
 | --- | --- |
 | Xcode 26 (App Store) | Compiler l'app et l'installer sur l'iPhone |
-| uv | Lancer `djtag` (Python 3.12 géré automatiquement) |
+| uv | Lancer `djtag` (Python 3.13 installé automatiquement) |
 | ffmpeg | Fichiers d'écoute AAC, forme d'onde, point de départ (encodeur Apple `aac_at`) |
 | chromaprint (`fpcalc`) | Empreinte acoustique, pour reconnaître les fichiers déplacés |
-| node + wrangler | Créer et déployer le backend Cloudflare |
-| gh | Accès GitHub en ligne de commande (facultatif) |
+| node | Créer et déployer le backend Cloudflare (wrangler est installé par le script) |
+| gh | Cloner le dépôt privé (`gh auth login`) |
 | Claude Code | Piloter `djtag` (« applique mes tags du train ») |
 
 ## 3. Le dépôt et `djtag`
 
 ```bash
-git clone https://github.com/antoine721/MyTags.git && cd MyTags
+gh auth login                                   # GitHub.com, HTTPS, Yes, navigateur
+gh repo clone antoine721/MyTags ~/MyTags && cd ~/MyTags
 cd mac-cli && uv sync
 uv run djtag init --music "/Users/<vous>/Music/DJ"   # un --music par dossier de musique
 uv run djtag doctor
 ```
 
-Astuce : `uv tool install --editable .` dans `mac-cli/` rend la commande `djtag` disponible partout.
+- `doctor` affiche Cloud en rouge tant que l'étape 5 n'est pas faite : c'est normal.
+- Astuce : `uv tool install --python 3.13 --editable .` dans `mac-cli/` rend la commande `djtag` disponible partout.
 
 ## 4. Audit de la bibliothèque (lecture seule)
 
@@ -67,14 +68,14 @@ uv run djtag audit --fingerprints --summary ../docs/audit.md
 
 ## 5. Backend Cloudflare (une seule fois)
 
+Avant : dans le tableau de bord Cloudflare, ouvrir **Workers & Pages** une fois et choisir un sous-domaine `workers.dev` s'il est demandé.
+
 ```bash
-cd backend
-npm ci
-npx wrangler login
-./scripts/setup.sh         # crée la base D1, le bucket R2, le jeton administrateur, déploie
+cd ../backend
+bash scripts/setup.sh      # connexion, base D1, bucket R2, jeton administrateur, déploiement
 ```
 
-Le script affiche l'adresse de l'API et le jeton administrateur. Puis :
+Le script attend que l'adresse réponde, puis affiche l'adresse de l'API, le jeton administrateur et la commande suivante. Puis :
 
 ```bash
 cd ../mac-cli

@@ -46,6 +46,13 @@ jobs:
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO SWIFT_COMPILATION_MODE=wholemodule build 2>&1 | tee build.log | grep -E "error:|warning: |BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
+      - name: Build for a device, as ⌘R in Xcode does (Debug, incremental)
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/MyTags.xcodeproj -scheme MyTags -configuration Debug \
+            -destination 'generic/platform=iOS' -derivedDataPath build-device \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee device.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" device.log
       - name: Test
         run: |
           set -o pipefail
