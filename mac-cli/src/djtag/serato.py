@@ -8,16 +8,21 @@ import subprocess
 PROCESS_MARKERS = ("Serato DJ Pro", "Serato DJ Lite", "Serato DJ")
 
 
-def running_processes() -> list[str]:
+def running_processes() -> list[str] | None:
+    """Process names, or None when they cannot be listed."""
     try:
         out = subprocess.run(["ps", "-axo", "comm="], capture_output=True, text=True, check=True).stdout
     except (OSError, subprocess.CalledProcessError):
-        return []
+        return None
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
 def is_running() -> bool:
+    """True when Serato DJ is open, or when that cannot be checked (fail closed)."""
     forced = os.environ.get("DJTAG_SERATO_RUNNING")
-    if forced is not None:
-        return forced == "1"
-    return any(marker in proc for proc in running_processes() for marker in PROCESS_MARKERS)
+    if forced is not None and os.environ.get("PYTEST_CURRENT_TEST"):
+        return forced == "1"  # test hook only: a stray variable must never disable R6
+    procs = running_processes()
+    if procs is None:
+        return True
+    return any(marker in proc for proc in procs for marker in PROCESS_MARKERS)

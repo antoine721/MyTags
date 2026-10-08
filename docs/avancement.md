@@ -26,10 +26,23 @@ Tout le code de la version 1 et des accélérateurs P2 est écrit et testé auto
 
 | Partie | Tests |
 | --- | --- |
-| `djtag` (Python) | 145 : modèle partagé, écriture octet par octet des 5 formats, flux complet import → apply → rollback, conflits, fichiers déplacés, garde-fous ; 1 test d'intégration contre le vrai Worker |
+| `djtag` (Python) | 170 : modèle partagé, écriture octet par octet des 5 formats, flux complet import → apply → rollback, conflits, fichiers déplacés, garde-fous, 25 tests de non-régression issus de la relecture ; 1 test d'intégration contre le vrai Worker |
 | Backend | 65 (Miniflare) |
 | MyTagsKit (Swift) | 98 tests, 195 cas, dont les 104 cas partagés avec Python |
-| App iOS | compilation et test de fumée sur simulateur (CI macOS) |
+| App iOS | compilation, tests unitaires (base locale, cache, bibliothèque) et parcours de tag automatisé sur simulateur (CI macOS) |
+
+## Relecture du chemin d'écriture
+
+Un agent séparé a relu `apply` et `rollback` en cherchant à les mettre en défaut. Il a trouvé 12 défauts réels, tous corrigés et couverts par `mac-cli/tests/test_write_path_regressions.py` :
+
+- ID3v2.4 aux tailles de cadres non conformes (anciens iTunes) : lu correctement, refusé si ambigu ;
+- vérification M4A étendue à toute la structure du fichier ;
+- une interruption (Ctrl-C, coupure réseau) ne perd plus le suivi des fichiers déjà écrits ; un fichier déjà écrit est reconnu « déjà à jour » au lieu d'un faux conflit ;
+- un fichier illisible, un nom très long ou un WAV mal formé n'arrête plus toute l'application ;
+- Serato ouvert pendant l'application : arrêt avant le fichier suivant (R6) ;
+- liens symboliques conservés ; l'annulation ne recrée jamais un fichier déplacé ni un dossier ;
+- doublons de COMMENT fusionnés, compteur d'écoutes POPM conservé, POPM d'un autre logiciel : seule la note est sautée ;
+- une seule application à la fois ; sauvegardes et manifeste vidés sur disque avant d'écrire.
 
 ## Prochaines étapes, dans l'ordre
 

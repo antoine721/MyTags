@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from . import fingerprint as fp
 from .api import Api
 from .cloud import CloudState
 from .model.comment import parse_comment
@@ -49,6 +50,11 @@ def resolve(
         except Exception as exc:
             result.errors.append({"track_id": track_id, "error": f"lecture impossible : {exc}"})
             continue
+        # The file as it is now becomes the reference, its acoustic fingerprint included.
+        acoustic = fp.compute(path)
+        if acoustic is None:
+            result.errors.append({"track_id": track_id, "error": "empreinte acoustique impossible (fpcalc)"})
+            continue
         rows = cloud.rows_for(track_id)
         if keep == "file":
             targets = compute_targets(fmt, current, rows, config)
@@ -72,6 +78,7 @@ def resolve(
             {
                 "id": track_id,
                 "baseline": current.to_json(),
+                "fingerprint": acoustic.digest,
                 "comment_status": parse_comment(current.comment, config).status,
                 "apply_status": "aucun",
                 "apply_message": None,

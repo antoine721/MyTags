@@ -390,7 +390,9 @@ def apply(
     finally:
         state.close()
     code = (
-        EXIT_ERROR
+        EXIT_REFUSED
+        if run.stopped
+        else EXIT_ERROR
         if run.count("error")
         else EXIT_CONFLICTS
         if run.count("conflict") or plan.conflicts
@@ -399,9 +401,15 @@ def apply(
     if as_json:
         emit_json({"ok": code == EXIT_OK, **run.to_json(), "serato_rescan": SERATO_RESCAN})
     else:
+        if run.stopped:
+            console.print(f"[red]{run.stopped}[/]")
         console.print(
             f"Application {run.run_id} : {run.count('written')} écrits, {run.count('conflict')} conflits, "
-            f"{run.count('error')} erreurs" + (f", {run.count('dry_run')} simulés" if dry_run else "") + "."
+            f"{run.count('error')} erreurs"
+            + (f", {run.count('already')} déjà à jour" if run.count("already") else "")
+            + (f", {run.count('skipped')} non traités" if run.count("skipped") else "")
+            + (f", {run.count('dry_run')} simulés" if dry_run else "")
+            + "."
         )
         console.print(f"Rapport : {run.report_md}")
         if run.count("written"):
@@ -442,7 +450,9 @@ def rollback(
         console.print(
             f"{run.count('written')} fichiers restaurés, {run.count('error')} erreurs. Rapport : {run.report_md}"
         )
-    raise typer.Exit(EXIT_ERROR if run.count("error") else EXIT_OK)
+    if run.stopped and not as_json:
+        console.print(f"[red]{run.stopped}[/]")
+    raise typer.Exit(EXIT_REFUSED if run.stopped else EXIT_ERROR if run.count("error") else EXIT_OK)
 
 
 @app.command()

@@ -86,5 +86,5 @@ def _leftover_temp_files(settings: Settings) -> list[Path]:
     for folder in settings.music_folders:
         root = folder.expanduser()
         if root.exists():
-            found.extend(root.rglob(".*.djtag-tmp-*"))
+            found.extend(root.rglob("*.djtag-tmp*"))
     return found

@@ -11,12 +11,16 @@ Safety barriers, in order, for every file:
 
 from __future__ import annotations
 
+import errno
+import fcntl
+import hashlib
 import json
 import os
 import shutil
 import uuid
-from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, suppress
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -29,13 +33,19 @@ from .cloud import CloudState
 from .model.values import tags_equal
 from .model.values_types import Baseline
 from .plan import TAG_LABELS, Plan, TrackPlan
-from .scan import now_iso
-from .settings import Settings
+from .scan import iso_from_timestamp, now_iso
+from .settings import Settings, work_dir
 from .state import ImportState
 from .tags import TagOptions, TagWriteError, preserved_digest, read_managed, write_managed
 
 ROLES = ("genre", "grouping", "comment", "rating")
 FLUSH_EVERY = 50
+SERATO_OPEN = (
+    "Serato DJ est ouvert (ou impossible à vérifier) : le fermer avant d'écrire des tags (règle R6)."
+)
+SERATO_OPENED_DURING_RUN = (
+    "Serato DJ a été ouvert pendant l'application : arrêt avant le fichier suivant (règle R6)."
+)
 SERATO_RESCAN = (
     "Dans Serato DJ Pro 4 : sélectionner les morceaux modifiés, clic droit › « Re-Scan File Info ». "
     "Voir docs/serato.md."
@@ -54,9 +64,10 @@ class VerifyError(Exception):
 class TrackOutcome:
     track_id: str
     path: str
-    status: str  # written | conflict | error | dry_run | skipped
+    status: str  # written | already | conflict | error | dry_run | skipped
     message: str | None = None
     changes: list[dict[str, Any]] = field(default_factory=list)
+    expected: Baseline | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass
@@ -69,6 +80,7 @@ class RunResult:
     outcomes: list[TrackOutcome] = field(default_factory=list)
     report_md: str | None = None
     report_json: str | None = None
+    stopped: str | None = None  # why the run ended before the last file
 
     def count(self, status: str) -> int:
         return sum(1 for o in self.outcomes if o.status == status)
@@ -84,10 +96,19 @@ class RunResult:
             "conflicts": self.count("conflict"),
             "errors": self.count("error"),
             "dry_run": self.count("dry_run"),
+            "already": self.count("already"),
+            "skipped": self.count("skipped"),
+            "stopped": self.stopped,
             "report_md": self.report_md,
             "report_json": self.report_json,
-            "outcomes": [asdict(o) for o in self.outcomes],
+            "outcomes": [_outcome_json(o) for o in self.outcomes],
         }
+
+
+def _outcome_json(o: TrackOutcome) -> dict[str, Any]:
+    data = asdict(o)
+    data.pop("expected", None)
+    return data
 
 
 def new_run_id() -> str:
@@ -104,21 +125,47 @@ def _differences(a: Baseline, b: Baseline) -> list[str]:
 
 def check_preconditions(settings: Settings, paths: list[str]) -> None:
     if serato.is_running():
-        raise ApplyRefused("Serato DJ est ouvert : le fermer avant d'écrire des tags (règle R6).")
+        raise ApplyRefused(SERATO_OPEN)
     if not fp.available():
         raise ApplyRefused("fpcalc est introuvable : `brew install chromaprint`.")
     settings.ensure_dirs()
-    needed = 0
+    sizes: list[int] = []
     for p in paths:
         try:
-            needed += Path(p).stat().st_size
+            sizes.append(Path(p).stat().st_size)
         except OSError:
             continue
+    needed = sum(sizes)
     free = shutil.disk_usage(settings.backups_dir).free
     if needed * 1.1 + 200_000_000 > free:
         raise ApplyRefused(
             f"Espace disque insuffisant pour les sauvegardes : {needed / 1e9:.1f} Go nécessaires, {free / 1e9:.1f} Go libres."
         )
+    # The temporary copy is written next to the file: its volume needs room for the largest one.
+    largest = max(sizes, default=0)
+    for folder in {Path(p).parent for p in paths}:
+        try:
+            room = shutil.disk_usage(folder).free
+        except OSError:
+            continue
+        if largest + 50_000_000 > room:
+            raise ApplyRefused(f"Espace disque insuffisant dans {folder} pour la copie temporaire.")
+
+
+@contextmanager
+def exclusive_run() -> Iterator[None]:
+    """Only one apply or rollback at a time (the user and Claude Code may both launch one)."""
+    lock_path = work_dir() / "apply.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "w") as fh:
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ApplyRefused("Une autre application ou annulation est en cours.") from None
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
 
 
 def verify_copy(original: Path, copy: Path, fmt: str, opts: TagOptions, expected: Baseline) -> None:
@@ -137,7 +184,39 @@ def verify_copy(original: Path, copy: Path, fmt: str, opts: TagOptions, expected
 
 
 def _temp_path(path: Path) -> Path:
-    return path.with_name(f".{path.name}.djtag-tmp-{os.getpid()}")
+    """Hidden temporary file next to `path`, with a short name whatever the length of the original."""
+    tag = hashlib.sha1(os.fsencode(path.name)).hexdigest()[:12]
+    return path.with_name(f".djtag-tmp-{tag}-{os.getpid()}{path.suffix.lower()[:8]}")
+
+
+def _backup_name(index: int, name: str) -> str:
+    stem, suffix = os.path.splitext(name)
+    budget = 200 - len(os.fsencode(suffix))
+    raw = os.fsencode(stem)
+    if len(raw) > budget:
+        stem = raw[:budget].decode("utf-8", "ignore")
+    return f"{index:05d}-{stem}{suffix}"
+
+
+def _discard(path: Path) -> None:
+    with suppress(OSError):
+        path.unlink(missing_ok=True)
+
+
+def _copy_into_library(src: Path, dest: Path) -> None:
+    """Copy next to a library file. djtag never creates folders in the library."""
+    if not dest.parent.is_dir():
+        raise FileNotFoundError(errno.ENOENT, "dossier introuvable", str(dest.parent))
+    try:
+        clone_or_copy(src, dest)
+    except BaseException:
+        _discard(dest)
+        raise
+
+
+def real_target(path: Path) -> Path:
+    """The file to write: a symlink in the library is followed, so the link itself stays a link."""
+    return path.resolve() if path.is_symlink() else path
 
 
 def _expected(item: TrackPlan) -> Baseline:
@@ -145,6 +224,10 @@ def _expected(item: TrackPlan) -> Baseline:
     for change in item.changes:
         values[change.tag] = change.new
     return Baseline(**values)
+
+
+class _SeratoOpened(Exception):
+    pass
 
 
 @dataclass
@@ -159,13 +242,22 @@ class ApplyContext:
 
 
 def run_apply(ctx: ApplyContext) -> RunResult:
+    if ctx.dry_run:
+        return _run_apply(ctx)
+    with exclusive_run():
+        return _run_apply(ctx)
+
+
+def _run_apply(ctx: ApplyContext) -> RunResult:
     s = ctx.settings
     opts = s.tag_options
     run = RunResult(new_run_id(), "dry_run" if ctx.dry_run else "apply", now_iso())
     if not ctx.dry_run:
         check_preconditions(s, [i.path for i in ctx.plan.items])
     elif serato.is_running():
-        raise ApplyRefused("Serato DJ est ouvert : le fermer avant d'appliquer (règle R6).")
+        raise ApplyRefused(SERATO_OPEN)
+    elif not fp.available():
+        raise ApplyRefused("fpcalc est introuvable : `brew install chromaprint`.")
     backup_dir = s.backups_dir / run.run_id
     manifest = Manifest(run.run_id, run.started_at)
     if not ctx.dry_run:
@@ -173,76 +265,155 @@ def run_apply(ctx: ApplyContext) -> RunResult:
         backup_dir.mkdir(parents=True, exist_ok=True)
         ctx.api.upsert_apply_run(_run_row(run, backup_dir))
 
-    patches: list[dict[str, Any]] = []
-    written_ids: list[str] = []
+    pending = _Pending()
     total = len(ctx.plan.items)
-    for index, item in enumerate(ctx.plan.items, 1):
-        outcome = _apply_one(ctx, item, index, backup_dir, manifest, opts)
-        run.outcomes.append(outcome)
-        if outcome.status == "written":
-            written_ids.append(item.track_id)
-            patches.append(_success_patch(item, Path(item.path)))
+    completed = False
+    try:
+        for index, item in enumerate(ctx.plan.items, 1):
+            try:
+                outcome = _apply_one(ctx, item, index, backup_dir, manifest, opts)
+            except _SeratoOpened:
+                run.stopped = SERATO_OPENED_DURING_RUN
+                run.outcomes.extend(
+                    _skipped(i, "non écrit : Serato DJ ouvert") for i in ctx.plan.items[index - 1 :]
+                )
+                break
+            except Exception as exc:  # one bad file never stops the run
+                outcome = TrackOutcome(
+                    item.track_id, item.path, "error", f"erreur inattendue : {exc}", _change_rows(item)
+                )
+            run.outcomes.append(outcome)
+            if not ctx.dry_run:
+                pending.record(ctx, item, outcome)
+            if ctx.progress:
+                ctx.progress(index, total)
+            if not ctx.dry_run and len(pending.patches) >= FLUSH_EVERY:
+                pending.flush(ctx.api, run.run_id)
+        completed = True
+    finally:
+        # Even when interrupted (Ctrl-C, network), the files already written are reported to the cloud.
+        _finish(ctx, run, backup_dir, pending, strict=completed)
+    return run
+
+
+@dataclass
+class _Pending:
+    patches: list[dict[str, Any]] = field(default_factory=list)
+    written_ids: list[str] = field(default_factory=list)
+
+    def record(self, ctx: ApplyContext, item: TrackPlan, outcome: TrackOutcome) -> None:
+        if outcome.status in ("written", "already"):
+            self.written_ids.append(item.track_id)
+            self.patches.append(
+                _success_patch(outcome.expected or _expected(item), item.track_id, Path(item.path))
+            )
             _update_state(ctx.state, Path(item.path))
-        elif outcome.status in ("conflict", "error") and not ctx.dry_run:
-            patches.append(
+        elif outcome.status in ("conflict", "error"):
+            self.patches.append(
                 {
                     "id": item.track_id,
                     "apply_status": "conflit" if outcome.status == "conflict" else "erreur",
                     "apply_message": outcome.message,
                 }
             )
-        if ctx.progress:
-            ctx.progress(index, total)
-        if not ctx.dry_run and len(patches) >= FLUSH_EVERY:
-            _flush(ctx.api, patches, written_ids, run.run_id)
-            patches, written_ids = [], []
+
+    def flush(self, api: Api, run_id: str) -> None:
+        _flush(api, self.patches, self.written_ids, run_id)
+        self.patches, self.written_ids = [], []
+
+
+def _finish(ctx: ApplyContext, run: RunResult, backup_dir: Path, pending: _Pending, strict: bool) -> None:
+    error: Exception | None = None
     if not ctx.dry_run:
-        _flush(ctx.api, patches, written_ids, run.run_id)
+        try:
+            pending.flush(ctx.api, run.run_id)
+        except Exception as exc:
+            error = exc
     run.finished_at = now_iso()
     if not ctx.dry_run:
-        ctx.api.upsert_apply_run(_run_row(run, backup_dir))
-    _write_reports(s, run)
-    return run
+        try:
+            ctx.api.upsert_apply_run(_run_row(run, backup_dir))
+        except Exception as exc:
+            error = error or exc
+    try:
+        _write_reports(ctx.settings, run)
+    except Exception as exc:
+        error = error or exc
+    if error is not None and strict:
+        raise error
+
+
+def _change_rows(item: TrackPlan) -> list[dict[str, Any]]:
+    return [{"tag": TAG_LABELS[c.tag], "current": c.current, "new": c.new} for c in item.changes]
+
+
+def _skipped(item: TrackPlan, message: str) -> TrackOutcome:
+    return TrackOutcome(item.track_id, item.path, "skipped", message, _change_rows(item))
+
+
+def _without_blocked_rating(item: TrackPlan, block: str | None) -> tuple[TrackPlan, str | None]:
+    """Decision 0006: a rating that cannot be written is left out; the other tags are still written."""
+    if block is None or not any(c.tag == "rating" for c in item.changes):
+        return item, None
+    changes = [c for c in item.changes if c.tag != "rating"]
+    targets = replace(item.targets, rating=item.baseline.rating)
+    return replace(item, changes=changes, targets=targets), block
 
 
 def _apply_one(
     ctx: ApplyContext, item: TrackPlan, index: int, backup_dir: Path, manifest: Manifest, opts: TagOptions
 ) -> TrackOutcome:
     path = Path(item.path)
-    outcome = TrackOutcome(
-        item.track_id,
-        item.path,
-        "error",
-        changes=[{"tag": TAG_LABELS[c.tag], "current": c.current, "new": c.new} for c in item.changes],
-    )
+    outcome = TrackOutcome(item.track_id, item.path, "error", changes=_change_rows(item))
     if not path.exists():
         outcome.message = "fichier introuvable (lancer `djtag import`)"
         return outcome
+    target = real_target(path)
     try:
-        current = read_managed(path, item.format, opts).baseline()
+        managed = read_managed(target, item.format, opts)
     except Exception as exc:
         outcome.message = f"lecture impossible : {exc}"
         return outcome
-    diffs = _differences(current, item.baseline)
-    if diffs:
-        outcome.status, outcome.message = "conflict", "modifié depuis l'import : " + ", ".join(diffs)
+    item, note = _without_blocked_rating(item, managed.rating_block)
+    outcome.changes = _change_rows(item)
+    if not item.changes:
+        outcome.status, outcome.message = "skipped", note
         return outcome
-    if item.fingerprint:
-        f = fp.compute(path)
-        if f is None or f.digest != item.fingerprint:
-            outcome.status, outcome.message = (
-                "conflict",
-                "empreinte acoustique différente (fichier remplacé ?)",
-            )
-            return outcome
+    current = managed.baseline()
+    expected = _expected(item)
+    # Each tag must be as imported, or already as wanted (a run interrupted before it told the cloud).
+    foreign = [
+        TAG_LABELS[r]
+        for r in ROLES
+        if not tags_equal(getattr(current, r), getattr(item.baseline, r))
+        and not tags_equal(getattr(current, r), getattr(expected, r))
+    ]
+    if foreign:
+        outcome.status, outcome.message = "conflict", "modifié depuis l'import : " + ", ".join(foreign)
+        return outcome
+    if not item.fingerprint:
+        outcome.status, outcome.message = (
+            "conflict",
+            "empreinte acoustique inconnue : relancer `djtag import`",
+        )
+        return outcome
+    f = fp.compute(target)
+    if f is None or f.digest != item.fingerprint:
+        outcome.status, outcome.message = "conflict", "empreinte acoustique différente (fichier remplacé ?)"
+        return outcome
+    outcome.expected = expected
+    todo = {c.tag: c.new for c in item.changes if not tags_equal(getattr(current, c.tag), c.new)}
+    if not todo:
+        outcome.status, outcome.message = "already", "déjà à jour"
+        return outcome
     if ctx.dry_run:
-        outcome.status = "dry_run"
+        outcome.status, outcome.message = "dry_run", note
         return outcome
 
-    backup_name = f"{index:05d}-{path.name}"
-    method = clone_or_copy(path, backup_dir / backup_name)
+    backup_name = _backup_name(index, path.name)
+    method = clone_or_copy(target, backup_dir / backup_name)
     digest = sha256_file(backup_dir / backup_name)
-    if sha256_file(path) != digest:
+    if sha256_file(target) != digest:
         outcome.message = "le fichier a changé pendant la sauvegarde"
         return outcome
     entry = BackupEntry(
@@ -251,47 +422,54 @@ def _apply_one(
     manifest.entries.append(entry)
     manifest.save(backup_dir)
 
-    expected = _expected(item)
-    temp = _temp_path(path)
+    temp = _temp_path(target)
     try:
-        clone_or_copy(path, temp)
-        write_managed(temp, item.format, item.change_map(), opts)
-        verify_copy(path, temp, item.format, opts, expected)
-        os.replace(temp, path)
-        fsync_dir(path.parent)
-    except (TagWriteError, VerifyError, OSError) as exc:
-        outcome.message = str(exc)
-        return outcome
+        try:
+            _copy_into_library(target, temp)
+            write_managed(temp, item.format, todo, opts)
+            verify_copy(target, temp, item.format, opts, expected)
+        except (TagWriteError, VerifyError, OSError) as exc:
+            outcome.message = str(exc)
+            return outcome
+        # Recorded before the replace: a crash right after it can still be rolled back.
+        entry.sha256_after = sha256_file(temp)
+        manifest.save(backup_dir)
+        if serato.is_running():
+            raise _SeratoOpened
+        if sha256_file(target) != digest:
+            outcome.message = "le fichier a changé pendant l'écriture"
+            return outcome
+        os.replace(temp, target)
+        fsync_dir(target.parent)
     finally:
-        if temp.exists():
-            temp.unlink()
+        _discard(temp)
 
-    final = read_managed(path, item.format, opts).baseline()
+    final = read_managed(target, item.format, opts).baseline()
     if not baseline_equal(final, expected):
-        _restore(backup_dir / backup_name, path)
+        _restore(backup_dir / backup_name, target)
         outcome.message = "relecture finale différente : fichier restauré depuis la sauvegarde"
         return outcome
     entry.written = True
-    entry.sha256_after = sha256_file(path)
     manifest.save(backup_dir)
-    outcome.status = "written"
+    outcome.status, outcome.message = "written", note
     return outcome
 
 
 def _restore(backup: Path, path: Path) -> None:
     temp = _temp_path(path)
-    clone_or_copy(backup, temp)
-    os.replace(temp, path)
+    _copy_into_library(backup, temp)
+    try:
+        os.replace(temp, path)
+    finally:
+        _discard(temp)
     fsync_dir(path.parent)
 
 
-def _success_patch(item: TrackPlan, path: Path) -> dict[str, Any]:
+def _success_patch(expected: Baseline, track_id: str, path: Path) -> dict[str, Any]:
     st = path.stat()
-    from .scan import iso_from_timestamp
-
     return {
-        "id": item.track_id,
-        "baseline": _expected(item).to_json(),
+        "id": track_id,
+        "baseline": expected.to_json(),
         "apply_status": "applique",
         "apply_message": None,
         "applied_at": now_iso(),
@@ -343,12 +521,16 @@ def _write_reports(s: Settings, run: RunResult) -> None:
         f"- Écrits : {run.count('written')} ; conflits : {run.count('conflict')} ; erreurs : {run.count('error')}"
         + (f" ; simulés : {run.count('dry_run')}" if run.mode == "dry_run" else ""),
     ]
+    if run.stopped:
+        lines.append(f"- **Arrêt** : {run.stopped}")
     if run.backup_dir:
         lines.append(f"- Sauvegarde : `{run.backup_dir}`")
     for status, label in (
         ("written", "Écrits"),
+        ("already", "Déjà à jour"),
         ("conflict", "Conflits"),
         ("error", "Erreurs"),
+        ("skipped", "Non traités"),
         ("dry_run", "Simulés"),
     ):
         rows = [o for o in run.outcomes if o.status == status]
@@ -384,8 +566,13 @@ class RollbackContext:
 
 
 def run_rollback(ctx: RollbackContext) -> RunResult:
+    with exclusive_run():
+        return _run_rollback(ctx)
+
+
+def _run_rollback(ctx: RollbackContext) -> RunResult:
     if serato.is_running():
-        raise ApplyRefused("Serato DJ est ouvert : le fermer avant d'annuler (règle R6).")
+        raise ApplyRefused(SERATO_OPEN)
     folder = ctx.settings.backups_dir / ctx.run_id
     if not (folder / "manifest.json").exists():
         raise ApplyRefused(f"aucune sauvegarde pour l'application {ctx.run_id}")
@@ -394,46 +581,84 @@ def run_rollback(ctx: RollbackContext) -> RunResult:
     ctx.api.upsert_apply_run(_run_row(run, folder))
     patches: list[dict[str, Any]] = []
     restored: list[str] = []
-    for entry in manifest.entries:
-        if not entry.written or (ctx.track_ids and entry.track_id not in ctx.track_ids):
-            continue
-        outcome = TrackOutcome(entry.track_id, entry.path, "error")
-        run.outcomes.append(outcome)
-        backup = folder / entry.backup
-        path = Path(entry.path)
-        if not backup.exists() or sha256_file(backup) != entry.sha256:
-            outcome.message = "sauvegarde absente ou altérée"
-            continue
-        if path.exists() and entry.sha256_after and sha256_file(path) != entry.sha256_after and not ctx.force:
+    try:
+        for entry in manifest.entries:
+            if ctx.track_ids and entry.track_id not in ctx.track_ids:
+                continue
+            if not entry.written and not _replaced_unconfirmed(entry):
+                continue
+            if serato.is_running():
+                run.stopped = SERATO_OPENED_DURING_RUN
+                break
+            outcome = TrackOutcome(entry.track_id, entry.path, "error")
+            run.outcomes.append(outcome)
+            try:
+                _rollback_one(ctx, folder, entry, outcome)
+            except Exception as exc:
+                outcome.status, outcome.message = "error", f"erreur inattendue : {exc}"
+            if outcome.status != "written":
+                continue
+            target = real_target(Path(entry.path))
+            st = target.stat()
+            patches.append(
+                {
+                    "id": entry.track_id,
+                    "baseline": entry.baseline_before,
+                    "apply_status": "aucun",
+                    "apply_message": f"Application {ctx.run_id} annulée",
+                    "file_size": st.st_size,
+                    "file_mtime": iso_from_timestamp(st.st_mtime),
+                }
+            )
+            restored.append(entry.track_id)
+            _update_state(ctx.state, Path(entry.path))
+    finally:
+        if patches:
+            ctx.api.patch_tracks(patches)
+        if restored:
+            ctx.api.mark_changes(restored, "sent", run.run_id, from_status="applied")
+        run.finished_at = now_iso()
+        ctx.api.upsert_apply_run(_run_row(run, folder))
+        _write_reports(ctx.settings, run)
+    return run
+
+
+def _replaced_unconfirmed(entry: BackupEntry) -> bool:
+    """The run stopped between the replace and its confirmation: the file holds the verified copy."""
+    if not entry.sha256_after:
+        return False
+    target = real_target(Path(entry.path))
+    return target.is_file() and sha256_file(target) == entry.sha256_after
+
+
+def _rollback_one(ctx: RollbackContext, folder: Path, entry: BackupEntry, outcome: TrackOutcome) -> None:
+    backup = folder / entry.backup
+    target = real_target(Path(entry.path))
+    if not backup.exists() or sha256_file(backup) != entry.sha256:
+        outcome.message = "sauvegarde absente ou altérée"
+        return
+    if not target.exists():
+        # Moved, renamed or deleted since: restoring would put a copy back at the old place (R1).
+        if not ctx.force:
+            outcome.message = (
+                "fichier introuvable (déplacé ou supprimé) : relancer avec --force pour le recréer"
+            )
+            return
+        if not target.parent.is_dir():
+            outcome.message = "dossier introuvable : djtag ne recrée pas de dossier"
+            return
+    else:
+        current = sha256_file(target)
+        if current == entry.sha256:
+            outcome.status, outcome.message = "written", "déjà restauré"
+            return
+        if entry.sha256_after and current != entry.sha256_after and not ctx.force:
             outcome.message = (
                 "fichier modifié depuis l'application (Serato ?) : relancer avec --force pour écraser"
             )
-            continue
-        _restore(backup, path)
-        if sha256_file(path) != entry.sha256:
-            outcome.message = "restauration incomplète"
-            continue
-        outcome.status = "written"
-        st = path.stat()
-        from .scan import iso_from_timestamp
-
-        patches.append(
-            {
-                "id": entry.track_id,
-                "baseline": entry.baseline_before,
-                "apply_status": "aucun",
-                "apply_message": f"Application {ctx.run_id} annulée",
-                "file_size": st.st_size,
-                "file_mtime": iso_from_timestamp(st.st_mtime),
-            }
-        )
-        restored.append(entry.track_id)
-        _update_state(ctx.state, path)
-    if patches:
-        ctx.api.patch_tracks(patches)
-    if restored:
-        ctx.api.mark_changes(restored, "sent", run.run_id, from_status="applied")
-    run.finished_at = now_iso()
-    ctx.api.upsert_apply_run(_run_row(run, folder))
-    _write_reports(ctx.settings, run)
-    return run
+            return
+    _restore(backup, target)
+    if sha256_file(target) != entry.sha256:
+        outcome.message = "restauration incomplète"
+        return
+    outcome.status = "written"

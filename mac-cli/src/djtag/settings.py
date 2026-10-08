@@ -73,6 +73,14 @@ class Settings:
             d.mkdir(parents=True, exist_ok=True)
 
 
+def _canonical(folder: Path) -> Path:
+    """One spelling per folder (symlinks, `..`), so a file always has the same path in the catalogue."""
+    try:
+        return folder.expanduser().resolve()
+    except OSError:
+        return folder.expanduser()
+
+
 def load(path: Path | None = None) -> Settings:
     path = path or config_path()
     s = Settings()
@@ -81,7 +89,7 @@ def load(path: Path | None = None) -> Settings:
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     lib = data.get("library", {})
     if "folders" in lib:
-        s.music_folders = [Path(p).expanduser() for p in lib["folders"]]
+        s.music_folders = [_canonical(Path(p)) for p in lib["folders"]]
     s.exclude = list(lib.get("exclude", s.exclude))
     s.api_url = str(data.get("api", {}).get("url", s.api_url)).rstrip("/")
     audio = data.get("audio", {})

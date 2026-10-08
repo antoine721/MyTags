@@ -39,7 +39,7 @@ final class TagFlowUITests: XCTestCase {
         app.buttons["EXTEND"].tap()
         app.buttons["4 étoiles"].tap()
         XCTAssertNotEqual(position, before)
-        let undo = app.buttons["Annuler"]
+        let undo = app.buttons["undoButton"]
         XCTAssertTrue(undo.waitForExistence(timeout: 2))
         undo.tap()
         XCTAssertEqual(position, before)

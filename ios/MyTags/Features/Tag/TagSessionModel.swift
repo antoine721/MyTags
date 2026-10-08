@@ -1,6 +1,7 @@
 import Foundation
 import MyTagsKit
 import Observation
+import UIKit
 
 /// State and actions of the Tag screen (spec 9.2 – 9.3): a frozen queue, one-tap values,
 /// validation by rating, 3-second undo, quick pass.
@@ -278,11 +279,17 @@ final class TagSessionModel {
 
     // MARK: Undo
 
+    /// 3 seconds (spec B-14); longer with VoiceOver, which needs time to reach the button.
+    static var undoDuration: Duration {
+        if ProcessInfo.processInfo.arguments.contains("-uitest-demo") { return .seconds(30) }
+        return UIAccessibility.isVoiceOverRunning ? .seconds(10) : .seconds(3)
+    }
+
     private func showUndo(_ value: Undo) {
         undo = value
         undoTimer?.cancel()
         undoTimer = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: Self.undoDuration)
             guard !Task.isCancelled else { return }
             self?.undo = nil
         }

@@ -154,7 +154,7 @@ def run_import(ctx: ImportContext) -> ImportReport:
     work.mkdir(parents=True, exist_ok=True)
     report = ctx.report
 
-    missing = [str(f) for f in s.music_folders if not f.expanduser().exists()]
+    missing = [str(f) for f in s.music_folders if _unavailable(f.expanduser())]
     report.skipped_missing_folders = missing
     files = list(scan(s.music_folders, s.exclude))
     report.scanned = len(files)
@@ -249,6 +249,14 @@ def run_import(ctx: ImportContext) -> ImportReport:
     _flush(ctx)
     _purge_old_blobs(ctx)
     return report
+
+
+def _unavailable(folder: Path) -> bool:
+    """A missing folder, or an empty one (unmounted drive leaving its mount point): never delete from it."""
+    try:
+        return not folder.is_dir() or next(folder.iterdir(), None) is None
+    except OSError:
+        return True
 
 
 def _under_missing(path: str, missing: list[str]) -> bool:
@@ -460,6 +468,8 @@ def _baseline_patch(
     for tag in ROLE_TAG.values():
         if tags_equal(old.get(tag), new.get(tag)):
             continue
+        if tags_equal(targets.get(tag), new.get(tag)):
+            continue  # the file already holds the app's value (an apply that could not report back)
         if tags_equal(targets.get(tag), old.get(tag)):
             reverted.append(tag)
         else:

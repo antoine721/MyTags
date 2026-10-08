@@ -133,7 +133,13 @@ def replace_tag(data: bytes, loc: ID3Location, tag_bytes: bytes, wav_chunk_id: b
         new_chunk = (
             cid + struct.pack(pack, len(tag_bytes)) + tag_bytes + (b"\x00" if len(tag_bytes) & 1 else b"")
         )
+        if insert_at & 1:
+            # The last chunk is odd-sized and its pad byte is missing: add it, chunks start on even offsets.
+            new_chunk = b"\x00" + new_chunk
         body = data[:insert_at] + new_chunk + data[insert_at:]
+        # The new chunk is the last one: the container now ends right after it.
+        form_size = insert_at + len(new_chunk) - 8
+        return body[:4] + struct.pack(pack, form_size) + body[8:]
     # The container grows or shrinks by exactly the bytes we changed inside it.
     form_size = iff.declared_size + (len(body) - len(data))
     return body[:4] + struct.pack(pack, form_size) + body[8:]

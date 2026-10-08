@@ -111,18 +111,67 @@ def read_ilst(fileobj: Any) -> tuple[Atoms, list[Any] | None, list[IlstItem]]:
     return atoms, path, items
 
 
-def mdat_digest(fileobj: Any, atoms: Atoms) -> str:
-    digest = hashlib.sha256()
+_IGNORED = {b"free", b"skip"}  # padding, reused by the writer
+_TAG_PATHS = {"moov.udta.meta.ilst", "moov.udta.meta.hdlr"}  # compared item by item, or recreated
+
+
+def structure_digest(fileobj: Any, atoms: Atoms) -> list[tuple[str, str]]:
+    """Hashes of every atom outside the tags, in order.
+
+    Chunk offset tables (stco / co64) are hashed as positions relative to the media data they
+    point into: a tag that grows legitimately shifts them all, a broken rewrite does not.
+    """
+    mdats = [(a.offset, a.offset + a.length) for a in atoms.atoms if a.name == b"mdat"]
+    out: list[tuple[str, str]] = []
+
+    def visit(atom: Any, prefix: str) -> None:
+        if atom.name in _IGNORED:
+            return
+        name = prefix + atom.name.decode("latin-1")
+        if name in _TAG_PATHS:
+            return
+        if atom.children is not None:
+            for child in atom.children:
+                visit(child, name + ".")
+            return
+        if atom.name in (b"stco", b"co64"):
+            out.append((name, _offsets_digest(fileobj, atom, mdats)))
+        else:
+            out.append((name, _atom_digest(fileobj, atom)))
+
     for atom in atoms.atoms:
-        if atom.name == b"mdat":
-            fileobj.seek(atom.offset)
-            remaining = atom.length
-            while remaining > 0:
-                chunk = fileobj.read(min(remaining, 1 << 20))
-                if not chunk:
-                    break
-                digest.update(chunk)
-                remaining -= len(chunk)
+        visit(atom, "")
+    return out
+
+
+def _atom_digest(fileobj: Any, atom: Any) -> str:
+    digest = hashlib.sha256()
+    fileobj.seek(atom.offset)
+    remaining = atom.length
+    while remaining > 0:
+        chunk = fileobj.read(min(remaining, 1 << 20))
+        if not chunk:
+            break
+        digest.update(chunk)
+        remaining -= len(chunk)
+    return digest.hexdigest()
+
+
+def _offsets_digest(fileobj: Any, atom: Any, mdats: list[tuple[int, int]]) -> str:
+    ok, data = atom.read(fileobj)
+    if not ok or len(data) < 8:
+        return "illisible"
+    count = int.from_bytes(data[4:8], "big")
+    width = 8 if atom.name == b"co64" else 4
+    digest = hashlib.sha256(data[:8])
+    for i in range(count):
+        raw = data[8 + i * width : 8 + (i + 1) * width]
+        if len(raw) < width:
+            return "tronqué"
+        offset = int.from_bytes(raw, "big")
+        where = next((n for n, (start, end) in enumerate(mdats) if start <= offset < end), None)
+        relative = (where, offset - mdats[where][0]) if where is not None else (None, offset)
+        digest.update(repr(relative).encode())
     return digest.hexdigest()
 
 
