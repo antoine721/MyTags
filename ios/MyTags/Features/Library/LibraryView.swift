@@ -41,7 +41,7 @@ struct LibraryView: View {
             .searchable(text: $model.searchText, prompt: "Titre, artiste, album")
             .refreshable { await app.sync.sync() }
             .navigationTitle("Bibliothèque")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .toolbar { toolbar }
             .overlay { emptyState }
             .safeAreaInset(edge: .bottom) { bottomBar }

@@ -61,6 +61,7 @@ struct TrackHeaderView: View {
 
     private var cover: some View {
         CoverImage(coverKey: track.coverKey, size: .large, side: coverSide)
+            .shadow(color: .black.opacity(0.22), radius: 12, y: 6)
             .overlay {
                 if let feedback {
                     Image(systemName: feedback.forward ? "goforward.15" : "gobackward.15")

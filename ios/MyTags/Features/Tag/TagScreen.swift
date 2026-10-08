@@ -15,7 +15,7 @@ struct TagScreen: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color(uiColor: .systemBackground).ignoresSafeArea()
+            CoverBackdrop(coverKey: session.currentTrack?.coverKey)
             VStack(spacing: 0) {
                 header
                     .gesture(dismissDrag)
@@ -142,9 +142,11 @@ struct TagScreen: View {
                 app.closeTagScreen()
             } label: {
                 Image(systemName: "chevron.down")
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 44, height: 44)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 28, height: 28)
             }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
             .accessibilityLabel("Fermer")
             Spacer()
             Menu {
@@ -167,9 +169,11 @@ struct TagScreen: View {
                 optionsMenu
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 44, height: 44)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 28, height: 28)
             }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
             .accessibilityLabel("Options")
         }
         .foregroundStyle(.primary)
