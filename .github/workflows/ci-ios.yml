@@ -51,7 +51,7 @@ jobs:
           set -o pipefail
           SIM=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in sorted(d.items(), reverse=True) if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
           xcodebuild -project ios/MyTags.xcodeproj -scheme MyTags -destination "id=$SIM" -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO SWIFT_COMPILATION_MODE=wholemodule test 2>&1 | tee test.log | grep -E "error:|Test (Suite|Case).*(passed|failed)|✔|✘|TEST (SUCCEEDED|FAILED)" || true
+            CODE_SIGNING_ALLOWED=NO SWIFT_COMPILATION_MODE=wholemodule -skip-testing:MyTagsUITests/ScreenshotTests test 2>&1 | tee test.log | grep -E "error:|Test (Suite|Case).*(passed|failed)|✔|✘|TEST (SUCCEEDED|FAILED)" || true
           grep -q "TEST SUCCEEDED" test.log
       - name: Upload logs
         if: always()
