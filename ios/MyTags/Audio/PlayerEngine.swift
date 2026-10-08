@@ -288,9 +288,9 @@ final class PlayerEngine {
         observers.append(center.addObserver(
             forName: AVPlayerItem.didPlayToEndTimeNotification, object: nil, queue: .main
         ) { [weak self] note in
-            let item = note.object as AnyObject?
+            let ended = (note.object as AnyObject?).map(ObjectIdentifier.init)
             MainActor.assumeIsolated {
-                guard let self, item === self.player.currentItem else { return }
+                guard let self, let current = self.player.currentItem, ended == ObjectIdentifier(current) else { return }
                 self.isPlaying = false
                 self.onEnded?()
             }

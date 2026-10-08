@@ -67,6 +67,10 @@ final class AppModel {
     // MARK: Lifecycle
 
     func start() async {
+        if ProcessInfo.processInfo.arguments.contains("-uitest-demo") {
+            await startDemo()
+            return
+        }
         await store.load()
         cache.limitBytes = settings.cacheLimitBytes
         cache.expireTrips(olderThan: settings.tripRetentionDays)

@@ -24,11 +24,15 @@ final class AudioCache {
     @ObservationIgnored var limitBytes: Int64 = 1_000_000_000
     @ObservationIgnored var onChange: ((Set<String>) -> Void)?
 
-    init(database: AppDatabase) throws {
+    init(database: AppDatabase, folder: URL? = nil) throws {
         self.database = database
-        let base = try FileManager.default.url(
-            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        folder = base.appending(path: "MyTags/Audio", directoryHint: .isDirectory)
+        if let folder {
+            self.folder = folder
+        } else {
+            let base = try FileManager.default.url(
+                for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            self.folder = base.appending(path: "MyTags/Audio", directoryHint: .isDirectory)
+        }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         var url = folder
         var values = URLResourceValues()

@@ -58,6 +58,7 @@ struct TagScreen: View {
         }
         .sheet(isPresented: $showingTrip) {
             PrepareTripSheet(defaultIDs: Array(session.queue.trackIDs.dropFirst(session.queue.currentIndex)), title: session.title)
+                .environment(app)
         }
     }
 
