@@ -33,8 +33,8 @@ final class AudioCache {
                 for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             self.folder = base.appending(path: "MyTags/Audio", directoryHint: .isDirectory)
         }
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        var url = folder
+        try FileManager.default.createDirectory(at: self.folder, withIntermediateDirectories: true)
+        var url = self.folder
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         try? url.setResourceValues(values)
