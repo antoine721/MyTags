@@ -58,7 +58,11 @@ export function jsonParam(rows: readonly unknown[]): string {
 }
 
 export interface UpsertOptions {
-  /** Only replace an existing row when the incoming updated_at is >= the stored one. */
+  /**
+   * Only replace an existing row's values when the incoming updated_at is >=
+   * the stored one. The rev is bumped either way, so that a device whose older
+   * write lost receives the stored row on its next pull.
+   */
   lww: boolean;
   /** updated_at comes from parameter ?2 (server time) instead of the rows. */
   serverTime: boolean;
@@ -73,17 +77,23 @@ export function upsertSql(spec: TableSpec, options: UpsertOptions): string {
   const values = Object.entries(spec.columns).map(([name, column]) =>
     options.serverTime && name === "updated_at" ? "?2" : apiToColumn(name, column, "j.value"),
   );
+  const table = ident(spec.name);
+  // Every right-hand side reads the stored row as it was before this update,
+  // so assigning updated_at does not affect the other CASE conditions.
+  const incomingWins = `excluded."updated_at" >= ${table}."updated_at"`;
   const assignments = names
     .filter((name) => name !== spec.key)
-    .map((name) => `${ident(name)} = excluded.${ident(name)}`);
-  const table = ident(spec.name);
+    .map((name) =>
+      options.lww
+        ? `${ident(name)} = CASE WHEN ${incomingWins} THEN excluded.${ident(name)} ELSE ${table}.${ident(name)} END`
+        : `${ident(name)} = excluded.${ident(name)}`,
+    );
   return [
     `INSERT INTO ${table} (${[...names, "rev"].map(ident).join(", ")})`,
     `SELECT ${[...values, CURRENT_REV].join(", ")}`,
     // `WHERE true` resolves the parser ambiguity between a join's ON and ON CONFLICT.
     `FROM json_each(?1) AS j WHERE true`,
     `ON CONFLICT (${ident(spec.key)}) DO UPDATE SET ${assignments.join(", ")}, "rev" = excluded."rev"`,
-    options.lww ? `WHERE excluded."updated_at" >= ${table}."updated_at"` : "",
   ].join("\n");
 }
 

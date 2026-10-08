@@ -138,6 +138,42 @@ describe("GET /v1/blobs/<key>", () => {
     expect(new Uint8Array(await ranged.arrayBuffer())).toEqual(bytes.slice(0, 4));
   });
 
+  it("honours a matching If-Range (ETag or Last-Modified) with 206", async () => {
+    const { etag } = await upload();
+    const byEtag = await get(ADMIN, AUDIO, { range: "bytes=10-19", "if-range": etag });
+    expect(byEtag.status).toBe(206);
+    expect(byEtag.headers.get("content-range")).toBe("bytes 10-19/100");
+    expect(new Uint8Array(await byEtag.arrayBuffer())).toEqual(bytes.slice(10, 20));
+
+    const lastModified = (await call("HEAD", `/v1/blobs/${AUDIO}`, { token: ADMIN })).headers.get("last-modified")!;
+    const byDate = await get(ADMIN, AUDIO, { range: "bytes=10-19", "if-range": lastModified });
+    expect(byDate.status).toBe(206);
+    expect(new Uint8Array(await byDate.arrayBuffer())).toEqual(bytes.slice(10, 20));
+  });
+
+  it("ignores Range and serves the whole new file when If-Range is stale", async () => {
+    const { etag: oldEtag } = await upload();
+    const replaced = Uint8Array.from({ length: 120 }, (_, i) => 255 - i);
+    const { etag: newEtag } = await upload(AUDIO, replaced);
+    expect(newEtag).not.toBe(oldEtag);
+
+    for (const ifRange of [oldEtag, `W/${newEtag}`, "Thu, 01 Jan 2026 00:00:00 GMT", "garbage"]) {
+      const res = await get(ADMIN, AUDIO, { range: "bytes=10-19", "if-range": ifRange });
+      expect(res.status, ifRange).toBe(200);
+      expect(res.headers.get("content-range"), ifRange).toBeNull();
+      expect(res.headers.get("content-length"), ifRange).toBe("120");
+      expect(res.headers.get("etag"), ifRange).toBe(newEtag);
+      expect(new Uint8Array(await res.arrayBuffer()), ifRange).toEqual(replaced);
+    }
+    // An otherwise unsatisfiable range is ignored too.
+    const big = await get(ADMIN, AUDIO, { range: "bytes=500-", "if-range": oldEtag });
+    expect(big.status).toBe(200);
+    expect((await big.arrayBuffer()).byteLength).toBe(120);
+    const head = await call("HEAD", `/v1/blobs/${AUDIO}`, { token: ADMIN, headers: { range: "bytes=0-9", "if-range": oldEtag } });
+    expect(head.status).toBe(200);
+    expect(head.headers.get("content-length")).toBe("120");
+  });
+
   it("supports HEAD for devices", async () => {
     const { token } = await createDevice();
     await upload();

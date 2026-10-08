@@ -60,10 +60,22 @@ function etagMatches(ifNoneMatch: string, etag: string): boolean {
   return ifNoneMatch.split(",").some((tag) => tag.trim().replace(/^W\//, "") === etag);
 }
 
-/** GET and HEAD of a blob, with Range (206/416) and If-None-Match (304) support. */
+/**
+ * If-Range (RFC 9110 13.1.5): an entity tag matches only by strong comparison
+ * (a weak tag never matches); an HTTP-date matches only when it is exactly the
+ * Last-Modified value sent for this object. On a mismatch, Range is ignored.
+ */
+function ifRangeMatches(ifRange: string, object: R2Object): boolean {
+  const value = ifRange.trim();
+  if (value.startsWith('"') || value.startsWith("W/")) return value === object.httpEtag;
+  return value === object.uploaded.toUTCString();
+}
+
+/** GET and HEAD of a blob, with Range (206/416), If-Range and If-None-Match (304) support. */
 export async function handleBlobGet({ request, env, params }: RequestContext): Promise<Response> {
   const key = blobKey(params);
   const rangeHeader = request.headers.get("range");
+  const ifRange = request.headers.get("if-range");
   const ifNoneMatch = request.headers.get("if-none-match");
   const isHead = request.method === "HEAD";
 
@@ -84,7 +96,9 @@ export async function handleBlobGet({ request, env, params }: RequestContext): P
     if (ifNoneMatch !== null && etagMatches(ifNoneMatch, head.httpEtag)) {
       return new Response(null, { status: 304, headers });
     }
-    const range = rangeHeader === null ? undefined : parseRange(rangeHeader, head.size);
+    // A stale If-Range (the object was replaced) means the whole new object, never a mix.
+    const useRange = rangeHeader !== null && (ifRange === null || ifRangeMatches(ifRange, head));
+    const range = useRange ? parseRange(rangeHeader, head.size) : undefined;
     if (range === "unsatisfiable") {
       throw new HttpError(416, "range_not_satisfiable", `Range not satisfiable for ${head.size} bytes`, {
         "content-range": `bytes */${head.size}`,

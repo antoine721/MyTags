@@ -136,6 +136,36 @@ describe("POST /v1/sync/push: changes", () => {
     expect(statuses).toEqual({ a: "superseded", b: "sent", c: "superseded", d: "sent" });
   });
 
+  it("sends the winning value back to a device whose older change lost", async () => {
+    const { token: phone } = await createDevice();
+    await push(ADMIN, {
+      changes: [
+        change("init", "t1", "field-note", ts(0), { rating: 3 }),
+        change("other", "t2", "field-note", ts(0), { rating: 1 }),
+      ],
+    });
+    // The phone is up to date, then edits t1 at ts(10) while offline (pending).
+    const upToDate = (await pull(phone, { track_values: null })).tables.track_values!;
+    expect(upToDate.rows).toHaveLength(2);
+
+    // The Mac writes a newer rating; the phone pulls it but skips the key (pending edit).
+    await push(ADMIN, { changes: [change("mac", "t1", "field-note", ts(15), { rating: 2 })] });
+    const skipped = (await pull(phone, { track_values: upToDate.cursor })).tables.track_values!;
+    expect(skipped.rows).toEqual([expect.objectContaining({ track_id: "t1", rating: 2 })]);
+    const winner = skipped.rows[0];
+
+    // The phone pushes its older edit: accepted, but it loses.
+    const res = await push(phone, { changes: [change("phone", "t1", "field-note", ts(10), { rating: 4 })] });
+    expect(res.accepted_changes).toEqual(["phone"]);
+
+    // Its next pull from the cursor it already holds returns the winning row, values unchanged.
+    const next = (await pull(phone, { track_values: skipped.cursor })).tables.track_values!;
+    expect(next.rows).toEqual([{ ...winner, rev: res.rev }]);
+    expect(next.rows[0]).toMatchObject({ rating: 2, updated_at: ts(15), device_id: "mac" });
+    const statuses = Object.fromEntries((await changeRows()).map((row) => [row.id, row.status]));
+    expect(statuses).toEqual({ init: "superseded", other: "sent", phone: "superseded", mac: "sent" });
+  });
+
   it("lets the later change win on equal created_at", async () => {
     await push(ADMIN, { changes: [change("first", "t1", FIELD, ts(1), { option_ids: ["first"] })] });
     await push(ADMIN, { changes: [change("second", "t1", FIELD, ts(1), { option_ids: ["second"] })] });
@@ -260,6 +290,42 @@ describe("POST /v1/sync/push: configuration", () => {
     const rows = await pullAll(token, "fields");
     expect(rows).toHaveLength(1);
     expect(rows[0].name).toBe("Eleven");
+  });
+
+  it("sends the stored row back to a device whose older config row lost", async () => {
+    const { token: phone } = await createDevice();
+    await push(ADMIN, {
+      fields: [field(ts(10), "Ten")],
+      settings: [{ key: "comment.separator", value: " ", updated_at: ts(10) }],
+    });
+    const before = await pull(phone, { fields: null, settings: null });
+    const [storedField] = before.tables.fields!.rows;
+    const [storedSetting] = before.tables.settings!.rows;
+
+    // Older rows differing in every column: nothing changes but the rev.
+    const older = {
+      ...field(ts(5), "Five"),
+      key: "genre-old",
+      kind: "multi",
+      target_tag: "GROUPING",
+      target_slot: 2,
+      required: false,
+      visible: true,
+      position: 9,
+      default_option_id: "o9",
+      is_advance_trigger: true,
+      artist_level: false,
+      deleted_at: ts(5),
+    };
+    const res = await push(phone, {
+      fields: [older],
+      settings: [{ key: "comment.separator", value: "-", updated_at: ts(5), deleted_at: ts(5) }],
+    });
+
+    const after = await pull(phone, { fields: before.tables.fields!.cursor, settings: before.tables.settings!.cursor });
+    expect(after.tables.fields!.rows).toEqual([{ ...storedField, rev: res.rev }]);
+    expect(after.tables.settings!.rows).toEqual([{ ...storedSetting, rev: res.rev }]);
+    expect(storedField).toMatchObject({ name: "Ten", updated_at: ts(10) });
   });
 
   it("keys settings by key, with LWW", async () => {

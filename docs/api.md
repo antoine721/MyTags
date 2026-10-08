@@ -70,15 +70,16 @@ Pour chaque table, les lignes sont triées par `(rev, rowid)` et ne contiennent 
   - l'insertion est idempotente : un `id` déjà connu est ignoré, et ne modifie pas `track_values` une seconde fois ;
   - chaque nouvelle modification met à jour `track_values` pour `(track_id, field_id)` si son `created_at` est supérieur ou égal à celui de la ligne en place (la plus récente gagne ; à égalité, la dernière reçue) : `option_ids`, `rating`, `text_value` (← `text`), `source`, `state = confirmed`, `updated_at = created_at`, `device_id` ;
   - `new_value: null` supprime logiquement la ligne (`deleted_at = created_at`, `option_ids = []`, `rating` et `text_value` à `null`) : le morceau reprend alors la valeur de son fichier ;
+  - si une modification perd face à une valeur plus récente déjà en place, la ligne de `track_values` garde ses valeurs mais reçoit le nouveau `rev` : l'appareil qui l'a envoyée récupère la valeur gagnante à sa prochaine synchronisation, même si son curseur avait déjà dépassé cette ligne ;
   - les modifications plus anciennes du même couple, encore au statut `sent`, passent à `superseded` (leur `rev` et leur `updated_at` changent).
-- **Configuration** : insertion ou remplacement de la ligne entière si son `updated_at` est supérieur ou égal à celui en place (`settings` : par `key`). Une colonne absente prend sa valeur par défaut du schéma.
+- **Configuration** : insertion ou remplacement de la ligne entière si son `updated_at` est supérieur ou égal à celui en place (`settings` : par `key`). Une colonne absente prend sa valeur par défaut du schéma. Une ligne plus ancienne ne change aucune valeur, mais la ligne en place reçoit le nouveau `rev`, pour que l'appareil qui l'a envoyée la récupère.
 - Réponse : `{"accepted_changes": ["uuid", …], "rev": 58}`. Une modification est acceptée dès qu'elle est enregistrée, même si une valeur plus récente l'emporte.
 
 ## Audio et covers
 
 | Méthode | Chemin | Accès | Rôle |
 | --- | --- | --- | --- |
-| GET, HEAD | `/v1/blobs/audio/<track_id>.m4a` | Appareil ou admin | Fichier d'écoute. Gère `Range` (réponse 206) et `If-None-Match` (réponse 304) |
+| GET, HEAD | `/v1/blobs/audio/<track_id>.m4a` | Appareil ou admin | Fichier d'écoute. Gère `Range` (réponse 206), `If-Range` et `If-None-Match` (réponse 304) |
 | GET, HEAD | `/v1/blobs/covers/<track_id>_600.jpg` ou `_150.jpg` | Appareil ou admin | Covers |
 | PUT | `/v1/admin/blobs/<clé>` | Admin | Envoi d'un fichier ; `Content-Type` conservé ; renvoie `{"key", "size", "etag"}` |
 | HEAD | `/v1/admin/blobs/<clé>` | Admin | Existence (200 ou 404) et taille (`Content-Length`) |
@@ -86,6 +87,7 @@ Pour chaque table, les lignes sont triées par `(rev, rowid)` et ne contiennent 
 
 - Clé : `audio/<nom>` ou `covers/<nom>`, le nom n'utilisant que `A-Z a-z 0-9 . _ -` (sinon 400).
 - `Range` : une seule plage, `bytes=a-b`, `bytes=a-` ou `bytes=-n` → 206 avec `Content-Range` et `Content-Length` ; plage hors du fichier → 416 avec `Content-Range: bytes */<taille>` ; plusieurs plages ou syntaxe inconnue → fichier entier (200).
+- `If-Range` : si sa valeur n'est pas exactement l'`ETag` actuel (comparaison forte, un `W/…` ne correspond jamais) ou le `Last-Modified` actuel, `Range` est ignoré et le fichier entier est renvoyé (200). Une reprise de téléchargement après le remplacement du fichier repart donc de zéro au lieu de mélanger deux versions.
 - En-têtes : `ETag`, `Accept-Ranges: bytes`, `Last-Modified`, `Cache-Control: private, max-age=86400` pour l'audio et `private, max-age=0, must-revalidate` pour les covers (une cover peut être remplacée sous la même clé).
 - 409 si le fichier est remplacé pendant sa lecture : il suffit de réessayer.
 - Un envoi sans `Content-Length` (transfert par morceaux) est accepté, mais mis en mémoire avant l'écriture.
