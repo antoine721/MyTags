@@ -1,0 +1,79 @@
+name: ios-screenshots
+
+# Screenshots of the app on demo data (light and dark), uploaded as the "ios-screenshots" artifact.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/**"]
+    paths: ["ios/MyTagsUITests/ScreenshotTests.swift", ".github/workflows/ios-screenshots.yml"]
+
+concurrency:
+  group: ios-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select the newest Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+      - name: Boot an iPhone simulator
+        run: |
+          SIM=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          devices = json.load(sys.stdin)['devices']
+          phones = [d for k, v in sorted(devices.items(), reverse=True) if 'iOS' in k for d in v if d['name'].startswith('iPhone')]
+          pro = [d for d in phones if d['name'].endswith(' Pro')]
+          print((pro or phones)[0]['udid'])")
+          echo "SIM=$SIM" >> "$GITHUB_ENV"
+          xcrun simctl boot "$SIM" || true
+          xcrun simctl bootstatus "$SIM" -b
+          xcrun simctl status_bar "$SIM" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing -project ios/MyTags.xcodeproj -scheme MyTags -destination "id=$SIM" \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO 2>&1 | tail -3
+      - name: Capture
+        run: |
+          mkdir -p screenshots
+          for mode in light dark; do
+            xcrun simctl ui "$SIM" appearance "$mode"
+            xcodebuild test-without-building -project ios/MyTags.xcodeproj -scheme MyTags -destination "id=$SIM" \
+              -derivedDataPath build -only-testing:MyTagsUITests/ScreenshotTests -resultBundlePath "shots-$mode.xcresult" \
+              CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)" || true
+            mkdir -p "raw-$mode"
+            xcrun xcresulttool export attachments --path "shots-$mode.xcresult" --output-path "raw-$mode"
+            python3 - "$mode" <<'EOF'
+          import json, re, shutil, sys
+          from pathlib import Path
+          mode = sys.argv[1]
+          raw = Path(f"raw-{mode}")
+          manifest = json.loads((raw / "manifest.json").read_text())
+          def walk(node):
+              if isinstance(node, dict):
+                  if "exportedFileName" in node:
+                      yield node
+                  for value in node.values():
+                      yield from walk(value)
+              elif isinstance(node, list):
+                  for value in node:
+                      yield from walk(value)
+          for item in walk(manifest):
+              human = item.get("suggestedHumanReadableName") or item["exportedFileName"]
+              match = re.match(r"^(.*?)_\d+_[0-9A-Fa-f-]{36}\.(\w+)$", human)
+              name = f"{match.group(1)}.{match.group(2)}" if match else human
+              shutil.copy(raw / item["exportedFileName"], Path("screenshots") / f"{mode}-{name}")
+              print(f"{mode}-{name}")
+          EOF
+          done
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ios-screenshots
+          path: screenshots/
