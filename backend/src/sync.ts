@@ -142,6 +142,19 @@ ON CONFLICT (track_id, field_id) DO UPDATE SET
 WHERE excluded.updated_at >= track_values.updated_at`;
 
 /**
+ * Gives the current rev to every track_values row touched by this batch whose
+ * upsert lost to a newer stored value (its values are left as they are). The
+ * pushing device may have skipped that row during an earlier pull because it
+ * had a pending edit, and its cursor is already past it: the new rev sends it
+ * the winning value on its next pull. Must run before SUPERSEDE_OLDER, which
+ * also gives the current rev to changes.
+ */
+const REPUBLISH_LOSING_VALUES = `
+UPDATE track_values SET rev = ${CURRENT_REV}
+WHERE (track_id, field_id) IN (SELECT track_id, field_id FROM changes WHERE rev = ${CURRENT_REV})
+  AND rev <> ${CURRENT_REV}`;
+
+/**
  * For the (track_id, field_id) pairs touched by this batch, 'sent' changes
  * that have a newer change become 'superseded'. ?1 = now.
  */
@@ -177,6 +190,7 @@ export async function handlePush(context: RequestContext): Promise<Response> {
     statements.push(
       db.prepare(INSERT_CHANGES).bind(jsonParam(changes), deviceId, now),
       db.prepare(APPLY_NEW_CHANGES),
+      db.prepare(REPUBLISH_LOSING_VALUES),
       db.prepare(SUPERSEDE_OLDER).bind(now),
     );
   }
