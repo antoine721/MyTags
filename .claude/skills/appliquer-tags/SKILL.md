@@ -20,8 +20,11 @@ Run every command from the `mac-cli/` folder of the repository with `uv run djta
    (artist — title: current → new), the conflicts and the warnings (e.g. ratings not written).
 4. **Explicit confirmation** — ask: « J'écris ces N morceaux ? (sauvegarde automatique, annulable) ».
    Only continue on a clear yes. Anything else: stop without writing.
-   - First real use (no previous application in `status.last_runs`): propose `--limit 20` first and a
-     check in Serato before the rest (rule R4 / spec phase 6).
+   - First real use (no previous application in `status.last_runs`): rule R4 requires a trial on copies
+     first. Propose `uv run djtag apply --copy-to ~/Desktop/MyTags-essai --limit 20 --json`: it writes the
+     tags into copies outside the library (library and cloud unchanged). Ask the user to drag that folder
+     into Serato and compare the copies with the originals (cue points, loops, beatgrid, colors,
+     overview; new tags visible). Only after their OK, apply for real, starting with `--limit 20`.
 5. **Apply** — `uv run djtag apply --yes --json` (add `--limit N` if agreed).
    - Exit 3: safety refusal — show the message, stop. If `stopped` is set, Serato was opened during
      the run: the files before it are written (and reported), the rest untouched; once Serato is
