@@ -45,7 +45,7 @@ Le catalogue se télécharge (quelques Mo), puis les miniatures en Wi-Fi.
 | Étoiles | Tap | Note ; valide le morceau et passe au suivant si tous les champs obligatoires sont remplis |
 | Libellé d'un champ | Appui long | Ajouter une valeur |
 | Ligne des étoiles | Appui long | Effacer la note |
-| Bandeau « Annuler » | Tap, dans les 3 s | Revient au morceau, tags d'avant la validation |
+| Bandeau « Annuler » | Tap, dans les 3 s (10 s avec VoiceOver) | Revient au morceau, tags d'avant la validation |
 | ⋯ | Tap | Passe rapide (un champ, gros boutons), passage automatique, point de départ, Préparer mon trajet |
 
 Les AirPods et l'écran verrouillé passent au morceau suivant ou précédent.
