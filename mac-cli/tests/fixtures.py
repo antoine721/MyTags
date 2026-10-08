@@ -28,6 +28,8 @@ from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
 from mutagen.wave import WAVE
 
 SERATO_EMAIL = "serato.test@local"
+
+
 def _tiny_jpeg() -> bytes:
     import io
 
@@ -49,10 +51,22 @@ def _ffmpeg(args: list[str]) -> None:
     subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args], check=True)
 
 
-def make_base_audio(directory: Path) -> dict[str, Path]:
-    """Two-second sine tones in every supported format, without tags."""
+def make_base_audio(
+    directory: Path, frequency: int = 440, duration: float = 2, noise_seed: int | None = None
+) -> dict[str, Path]:
+    """Sine tones (plus seeded pink noise, for distinct fingerprints) in every format, without tags."""
     directory.mkdir(parents=True, exist_ok=True)
-    src = ["-f", "lavfi", "-i", "sine=frequency=440:duration=2:sample_rate=44100", "-ac", "2"]
+    src = ["-f", "lavfi", "-i", f"sine=frequency={frequency}:duration={duration}:sample_rate=44100"]
+    if noise_seed is not None:
+        src += [
+            "-f",
+            "lavfi",
+            "-i",
+            f"anoisesrc=d={duration}:c=pink:a=0.05:seed={noise_seed}",
+            "-filter_complex",
+            "amix=inputs=2",
+        ]
+    src += ["-ac", "2"]
     out = {
         "mp3": directory / "base.mp3",
         "m4a": directory / "base.m4a",
@@ -60,7 +74,20 @@ def make_base_audio(directory: Path) -> dict[str, Path]:
         "wav": directory / "base.wav",
         "aiff": directory / "base.aiff",
     }
-    _ffmpeg([*src, "-c:a", "libmp3lame", "-b:a", "128k", "-id3v2_version", "0", "-write_xing", "0", str(out["mp3"])])
+    _ffmpeg(
+        [
+            *src,
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            "-id3v2_version",
+            "0",
+            "-write_xing",
+            "0",
+            str(out["mp3"]),
+        ]
+    )
     _ffmpeg([*src, "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(out["m4a"])])
     _ffmpeg([*src, "-c:a", "flac", str(out["flac"])])
     _ffmpeg([*src, "-c:a", "pcm_s16le", str(out["wav"])])
@@ -78,14 +105,40 @@ def _id3_frames(tags: ID3, *, genre: str, grouping: str, comment: str, rating: i
     tags.add(COMM(encoding=0, lang="eng", desc="", text=comment))
     tags.add(COMM(encoding=0, lang="eng", desc="iTunNORM", text=" 00000A00 00000B00"))
     tags.add(POPM(email=SERATO_EMAIL, rating=rating, count=3))
-    tags.add(GEOB(encoding=0, mime="application/octet-stream", filename="", desc="Serato Markers2", data=SERATO_MARKERS2))
-    tags.add(GEOB(encoding=0, mime="application/octet-stream", filename="", desc="Serato Overview", data=SERATO_OVERVIEW))
-    tags.add(GEOB(encoding=0, mime="application/octet-stream", filename="", desc="Serato BeatGrid", data=SERATO_BEATGRID))
+    tags.add(
+        GEOB(
+            encoding=0,
+            mime="application/octet-stream",
+            filename="",
+            desc="Serato Markers2",
+            data=SERATO_MARKERS2,
+        )
+    )
+    tags.add(
+        GEOB(
+            encoding=0,
+            mime="application/octet-stream",
+            filename="",
+            desc="Serato Overview",
+            data=SERATO_OVERVIEW,
+        )
+    )
+    tags.add(
+        GEOB(
+            encoding=0,
+            mime="application/octet-stream",
+            filename="",
+            desc="Serato BeatGrid",
+            data=SERATO_BEATGRID,
+        )
+    )
     tags.add(TXXX(encoding=3, desc="Serato Rating Emoji", text="🔥"))
     tags.add(APIC(encoding=0, mime="image/jpeg", type=3, desc="", data=TINY_JPEG))
 
 
-def tagged_mp3(base: Path, dest: Path, *, version: int = 3, v1: bool = True, padding: int = 1024, **values: object) -> Path:
+def tagged_mp3(
+    base: Path, dest: Path, *, version: int = 3, v1: bool = True, padding: int = 1024, **values: object
+) -> Path:
     shutil.copyfile(base, dest)
     tags = ID3()
     _id3_frames(tags, **_defaults(values))
@@ -170,5 +223,11 @@ def _defaults(values: dict[str, object]) -> dict[str, object]:
 
 def tagged(fmt: str, base: dict[str, Path], dest_dir: Path, name: str = "track", **values: object) -> Path:
     dest = dest_dir / f"{name}.{fmt}"
-    builders = {"mp3": tagged_mp3, "wav": tagged_wav, "aiff": tagged_aiff, "m4a": tagged_m4a, "flac": tagged_flac}
+    builders = {
+        "mp3": tagged_mp3,
+        "wav": tagged_wav,
+        "aiff": tagged_aiff,
+        "m4a": tagged_m4a,
+        "flac": tagged_flac,
+    }
     return builders[fmt](base[fmt], dest, **values)  # type: ignore[operator]

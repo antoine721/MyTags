@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mytags-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mytags",
+      // Filled in by scripts/setup.sh (wrangler d1 create mytags).
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "mytags-audio"
+    }
+  ]
+  // Secret ADMIN_TOKEN: set with `wrangler secret put ADMIN_TOKEN` (never stored here).
+  // For `wrangler dev`, put ADMIN_TOKEN=... in a git-ignored .dev.vars file.
+}

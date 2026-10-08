@@ -12,8 +12,15 @@ from hypothesis import strategies as st
 from mutagen import File as MutagenFile
 from mutagen.id3 import ID3
 
-from djtag.tags import TagOptions, TagWriteError, preserved_digest, read_managed, write_managed
-from djtag.tags import containers, id3raw
+from djtag.tags import (
+    TagOptions,
+    TagWriteError,
+    containers,
+    id3raw,
+    preserved_digest,
+    read_managed,
+    write_managed,
+)
 
 from .fixtures import SERATO_EMAIL, SERATO_MARKERS2, tagged, tagged_mp3
 
@@ -174,7 +181,9 @@ def test_m4a_unmanaged_item_order_kept(base_audio, tmp_path):
     keys_before = [i.key for i in mp4.read_ilst(io.BytesIO(path.read_bytes()))[2]]
     write_managed(path, "m4a", {"genre": "POP", "comment": "US EDIT ()"}, OPTS)
     keys_after = [i.key for i in mp4.read_ilst(io.BytesIO(path.read_bytes()))[2]]
-    assert [k for k in keys_after if k not in ("©gen", "©cmt")] == [k for k in keys_before if k not in ("©gen", "©cmt")]
+    assert [k for k in keys_after if k not in ("©gen", "©cmt")] == [
+        k for k in keys_before if k not in ("©gen", "©cmt")
+    ]
     assert decodes(path)
 
 
@@ -186,7 +195,9 @@ def test_id3_frame_level_roundtrip_keeps_raw_bytes(base_audio, tmp_path):
     assert frames == b"".join(f.raw for f in tag.frames)
 
 
-text = st.text(st.characters(blacklist_categories=("Cs", "Cc")), min_size=1, max_size=40).filter(lambda s: s.strip() == s and s)
+text = st.text(st.characters(blacklist_categories=("Cs", "Cc")), min_size=1, max_size=40).filter(
+    lambda s: s.strip() == s and s
+)
 
 
 @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])

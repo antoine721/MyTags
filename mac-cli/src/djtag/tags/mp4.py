@@ -8,9 +8,9 @@ work (parent atom sizes, chunk offsets, free padding).
 from __future__ import annotations
 
 import hashlib
-import io
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 from mutagen._constants import GENRES
 from mutagen.mp4 import MP4, AtomDataType, MP4FreeForm, MP4Tags
@@ -34,7 +34,7 @@ class MP4Managed:
     issues: list[str] = field(default_factory=list)
 
 
-def _first_text(tags: Mapping[str, object], key: str, issues: list[str]) -> str | None:
+def _first_text(tags: Any, key: str, issues: list[str]) -> str | None:
     values = tags.get(key)
     if not values:
         return None
@@ -93,14 +93,14 @@ def _freeform_key(raw: bytes) -> str:
     return f"----:{mean}:{name}"
 
 
-def read_ilst(fileobj: io.BufferedIOBase) -> tuple[Atoms, list[Atom] | None, list[IlstItem]]:
+def read_ilst(fileobj: Any) -> tuple[Atoms, list[Any] | None, list[IlstItem]]:
     fileobj.seek(0)
     atoms = Atoms(fileobj)
     try:
         path = atoms.path(b"moov", b"udta", b"meta", b"ilst")
     except KeyError:
         return atoms, None, []
-    ilst = path[-1]
+    ilst: Any = path[-1]
     items: list[IlstItem] = []
     for child in ilst.children or []:
         fileobj.seek(child.offset)
@@ -111,7 +111,7 @@ def read_ilst(fileobj: io.BufferedIOBase) -> tuple[Atoms, list[Atom] | None, lis
     return atoms, path, items
 
 
-def mdat_digest(fileobj: io.BufferedIOBase, atoms: Atoms) -> str:
+def mdat_digest(fileobj: Any, atoms: Atoms) -> str:
     digest = hashlib.sha256()
     for atom in atoms.atoms:
         if atom.name == b"mdat":
