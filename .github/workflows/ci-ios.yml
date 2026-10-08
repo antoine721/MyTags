@@ -53,6 +53,36 @@ jobs:
           xcodebuild -project ios/MyTags.xcodeproj -scheme MyTags -destination "id=$SIM" -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO SWIFT_COMPILATION_MODE=wholemodule -skip-testing:MyTagsUITests/ScreenshotTests test 2>&1 | tee test.log | grep -E "error:|Test (Suite|Case).*(passed|failed)|✔|✘|TEST (SUCCEEDED|FAILED)" || true
           grep -q "TEST SUCCEEDED" test.log
+      - name: Crash reports and end of the test log
+        if: failure()
+        run: |
+          echo "::group::test.log (last 150 lines)"
+          tail -150 test.log || true
+          echo "::endgroup::"
+          find ~/Library/Logs/DiagnosticReports -name '*.ips' -newer build.log 2>/dev/null | head -5 > crashes.txt || true
+          [ -s crashes.txt ] || { echo "no crash report"; exit 0; }
+          python3 - $(cat crashes.txt) <<'EOF'
+          import json, sys
+          for path in sys.argv[1:]:
+              text = open(path).read()
+              _, _, body = text.partition("\n")
+              print(f"== {path}")
+              try:
+                  data = json.loads(body)
+              except ValueError:
+                  print(text[:4000])
+                  continue
+              for key in ("procName", "exception", "termination", "asi"):
+                  print(f"{key}: {data.get(key)}")
+              images = data.get("usedImages", [])
+              for thread in data.get("threads", []):
+                  if not thread.get("triggered"):
+                      continue
+                  for frame in thread.get("frames", [])[:40]:
+                      index = frame.get("imageIndex", -1)
+                      image = images[index].get("name", "?") if 0 <= index < len(images) else "?"
+                      print(f"  {image}  {frame.get('symbol', '?')} + {frame.get('symbolLocation', '')}")
+          EOF
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v5
