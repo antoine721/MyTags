@@ -44,4 +44,28 @@ final class TagFlowUITests: XCTestCase {
         undo.tap()
         XCTAssertEqual(position, before)
     }
+
+    /// The rating is kept after a refused validation: filling the last missing field validates.
+    func testFillingTheLastMissingFieldValidates() {
+        openFirstTrack()
+        let before = position
+        app.buttons["5 étoiles"].tap()
+        XCTAssertEqual(position, before)
+        for value in ["VERT", "FR", "SHATTA", "EXTEND"] where position == before {
+            app.buttons[value].tap()
+        }
+        XCTAssertNotEqual(position, before)
+        let undo = app.buttons["undoButton"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 2))
+        undo.tap()
+        XCTAssertEqual(position, before)
+    }
+
+    func testTagButtonOpensTheTagScreen() {
+        let tag = app.buttons["tagButton"]
+        XCTAssertTrue(tag.waitForExistence(timeout: 20))
+        tag.tap()
+        XCTAssertTrue(app.buttons["Fermer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(position.hasPrefix("File À compléter"))
+    }
 }

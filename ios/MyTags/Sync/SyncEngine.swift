@@ -19,19 +19,31 @@ final class SyncEngine {
     private(set) var isExpensiveNetwork = false
     private(set) var lastSyncAt: Date?
     private(set) var lastError: String?
+    /// Edits the server refused: kept on the phone, left out of pushes, offered again at each launch.
+    private(set) var rejectedCount = 0
     /// Progress of the very first catalogue download (nil once done).
     private(set) var initialProgress: Double?
 
     @ObservationIgnored private let store: LibraryStore
-    @ObservationIgnored private var api: APIClient?
+    @ObservationIgnored private var api: (any SyncAPI)?
+    /// Bumped by `configure`: a sync started with an older token must not act for the new one.
+    @ObservationIgnored private var generation = 0
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private var rerunRequested = false
     @ObservationIgnored private var pushTask: Task<Void, Never>?
     @ObservationIgnored private var timer: Task<Void, Never>?
     /// Called when the server refuses the device token (revoked).
     @ObservationIgnored var onUnauthorized: (() -> Void)?
+    /// Called when the network comes back.
+    @ObservationIgnored var onNetworkBack: (() -> Void)?
 
     static let pullTables = ["tracks", "fields", "field_options", "track_values", "rules", "saved_views", "settings"]
+    /// Worker limits per push: 500 changes (MAX_CHANGES) and 500 rows per configuration table (MAX_CONFIG_ROWS).
+    static let maxRowsPerPush = 500
+    /// Rows per table and pull page: a page of tracks must stay well within the Worker's CPU budget.
+    static let pullPageSize = 300
+    /// Journal entries read per push round.
+    static let journalWindow = 2_000
 
     init(store: LibraryStore) {
         self.store = store
@@ -40,27 +52,45 @@ final class SyncEngine {
             let expensive = path.isExpensive || path.isConstrained
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                let cameBack = online && !self.isOnline
-                self.isOnline = online
                 self.isExpensiveNetwork = expensive
-                if cameBack { self.syncNow() }
+                self.setOnline(online, sync: true)
             }
         }
         monitor.start(queue: DispatchQueue(label: "mytags.network"))
         store.onLocalEdit = { [weak self] in self?.schedulePush() }
     }
 
-    func configure(api: APIClient?) {
+    func configure(api: (any SyncAPI)?) {
         self.api = api
+        generation += 1
         timer?.cancel()
         guard api != nil else { return }
+        // Refused rows get another chance at each launch or pairing (server or app fixed since).
+        try? store.database.requeueRejected()
+        store.refreshPending()
+        refreshRejected()
         timer = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
-                guard let self, self.store.pendingCount > 0 else { continue }
-                self.syncNow()
+                guard let self else { return }
+                self.retryIfNeeded()
             }
         }
+    }
+
+    /// The 30 s retry: re-checks the network, then syncs if edits or configuration rows wait.
+    private func retryIfNeeded() {
+        if !isOnline && monitor.currentPath.status == .satisfied { setOnline(true, sync: false) }
+        let waiting = store.pendingCount > 0 || ((try? store.database.hasPendingPush()) ?? false)
+        if waiting { syncNow() }
+    }
+
+    private func setOnline(_ online: Bool, sync: Bool) {
+        let cameBack = online && !isOnline
+        isOnline = online
+        guard cameBack else { return }
+        onNetworkBack?()
+        if sync { syncNow() }
     }
 
     var waitingCount: Int { store.pendingCount }
@@ -95,20 +125,34 @@ final class SyncEngine {
     }
 
     private func run(pull: Bool) async {
-        guard let api else { return }
         phase = .syncing
         defer { phase = .idle }
         repeat {
             rerunRequested = false
+            guard let api else { return }
+            let generation = self.generation
             do {
-                try await push(api)
-                if pull { try await self.pull(api) }
+                // A refused push must not stop the pull: pulled rows never replace a value that has a
+                // pending local edit, so pulling after a failed push loses nothing.
+                var pushError: (any Error)?
+                do {
+                    try await push(api)
+                } catch {
+                    switch error {
+                    case APIError.offline, APIError.unauthorized: throw error  // the pull would fail the same way
+                    default: pushError = error
+                    }
+                }
+                if pull { try await self.pull(api, generation: generation) }
+                if let pushError { throw pushError }
                 lastSyncAt = Date()
                 lastError = nil
             } catch APIError.offline {
-                isOnline = false
+                // A timeout in a tunnel is not "offline" while the path is up: trust the monitor.
+                if monitor.currentPath.status != .satisfied { isOnline = false }
                 return
             } catch APIError.unauthorized {
+                guard generation == self.generation else { return }
                 lastError = APIError.unauthorized.errorDescription
                 onUnauthorized?()
                 return
@@ -121,49 +165,79 @@ final class SyncEngine {
 
     // MARK: Push
 
-    private func push(_ api: APIClient) async throws {
+    private func push(_ api: any SyncAPI) async throws {
         let database = store.database
+        let window = Self.journalWindow
+        defer {
+            store.refreshPending()
+            refreshRejected()
+        }
         while true {
-            let pending = try await Task.detached { try database.pendingChanges(limit: 2_000) }.value
+            let pending = try await Task.detached { try database.pendingChanges(limit: window) }.value
             let config = try await Task.detached { try database.dirtyConfig() }.value
             if pending.isEmpty && config.isEmpty { break }
-            let coalesced = ChangeCoalescer.coalesce(pending)
-            let batch = Array(coalesced.prefix(500))
-            let batchKeys = Set(batch.map { "\($0.trackID)|\($0.fieldID)" })
-            // Every raw entry folded into a sent change is sent too.
-            let sentIDs = pending.filter { batchKeys.contains("\($0.trackID)|\($0.fieldID)") }.map(\.id)
-            var body = PushBody()
-            body.changes = batch.map {
-                PushChange(
-                    id: $0.id, trackID: $0.trackID, fieldID: $0.fieldID, oldValue: $0.oldValue,
-                    newValue: $0.newValue, source: $0.source.rawValue, createdAt: $0.createdAt)
+            // Configuration first: changes may refer to a field or an option created on the phone.
+            let items = PushItem.items(config: config) + PushItem.items(changes: pending)
+            for chunk in items.chunked(into: Self.maxRowsPerPush) {
+                try await send(chunk, api: api)
             }
-            body.fields = config.fields
-            body.fieldOptions = config.fieldOptions
-            body.rules = config.rules
-            body.savedViews = config.savedViews
-            body.settings = config.settings
-            _ = try await api.push(body)
-            try await Task.detached {
-                try database.markSent(ids: sentIDs)
-                try database.markConfigPushed(config)
-            }.value
-            store.refreshPending()
-            if coalesced.count <= 500 && pending.count < 2_000 { break }
+            if pending.count < window { break }
         }
+    }
+
+    /// Sends `items` in one request. When the server refuses it (400, 413), halves it until the
+    /// refused rows are isolated: those are flagged rejected (kept on the phone), the rest is sent.
+    private func send(_ items: [PushItem], api: any SyncAPI) async throws {
+        guard !items.isEmpty else { return }
+        let database = store.database
+        let ids = items.flatMap(\.journalIDs)
+        let config = PushItem.config(of: items)
+        do {
+            _ = try await api.push(PushBody(items: items))
+        } catch APIError.http(let code, let message) where code == 400 || code == 413 {
+            setOnline(true, sync: false)
+            guard items.count == 1 else {
+                let half = items.count / 2
+                try await send(Array(items[..<half]), api: api)
+                try await send(Array(items[half...]), api: api)
+                return
+            }
+            syncLogger.error("Push refused (\(code)): \(message, privacy: .public)")
+            try await Task.detached {
+                try database.markRejected(ids: ids)
+                try database.markConfigRejected(config)
+            }.value
+            return
+        }
+        setOnline(true, sync: false)
+        try await Task.detached {
+            try database.markSent(ids: ids)
+            try database.markConfigPushed(config)
+        }.value
+    }
+
+    private func refreshRejected() {
+        if let count = try? store.database.rejectedCount() { rejectedCount = count }
     }
 
     // MARK: Pull
 
-    private func pull(_ api: APIClient) async throws {
+    private func pull(_ api: any SyncAPI, generation: Int) async throws {
         let database = store.database
+        let pageSize = Self.pullPageSize
         var cursors = try await Task.detached { try database.cursors() }.value
         let firstSync = cursors["tracks"] == nil
         var pending = Set(Self.pullTables)
         var received = 0
         while !pending.isEmpty {
             let request = Dictionary(uniqueKeysWithValues: pending.map { ($0, cursors[$0] ?? .zero) })
-            let response = try await api.pull(cursors: request, limit: 1_000)
+            let response = try await api.pull(cursors: request, limit: pageSize)
+            // Unpaired or paired again meanwhile: these rows belong to the previous setup.
+            guard generation == self.generation else {
+                initialProgress = nil
+                return
+            }
+            setOnline(true, sync: false)
             var batch = PullBatch()
             let t = response.tables
             if let page = t.tracks { batch.tracks = page.rows; Self.advance(&cursors, &pending, "tracks", page) }
@@ -186,7 +260,7 @@ final class SyncEngine {
             batch.cursors = cursors
             received += batch.tracks.count
             if firstSync {
-                initialProgress = min(0.95, Double(received) / Double(max(received + (pending.contains("tracks") ? 1_000 : 0), 1)))
+                initialProgress = min(0.95, Double(received) / Double(max(received + (pending.contains("tracks") ? pageSize : 0), 1)))
             }
             let toApply = batch
             let applied = try await Task.detached { try database.apply(toApply) }.value
@@ -213,5 +287,55 @@ final class SyncEngine {
         case "settings": tables.settings != nil
         default: false
         }
+    }
+}
+
+/// One row of a push and the local entries it stands for.
+struct PushItem: Sendable {
+    var change: PushChange?
+    /// Journal entries folded into `change`: marked sent or rejected with it.
+    var journalIDs: [String] = []
+    /// One configuration row (empty for a change).
+    var config = DirtyConfig()
+
+    /// One item per configuration row, so that a refused row can be isolated.
+    static func items(config: DirtyConfig) -> [PushItem] {
+        var items: [PushItem] = []
+        items += config.fields.map { PushItem(config: DirtyConfig(fields: [$0])) }
+        items += config.fieldOptions.map { PushItem(config: DirtyConfig(fieldOptions: [$0])) }
+        items += config.rules.map { PushItem(config: DirtyConfig(rules: [$0])) }
+        items += config.savedViews.map { PushItem(config: DirtyConfig(savedViews: [$0])) }
+        items += config.settings.map { PushItem(config: DirtyConfig(settings: [$0])) }
+        return items
+    }
+
+    /// One item per (track, field): the coalesced change, with every journal entry it folds.
+    static func items(changes pending: [PendingChange]) -> [PushItem] {
+        var folded: [String: [String]] = [:]
+        for change in pending {
+            folded["\(change.trackID)|\(change.fieldID)", default: []].append(change.id)
+        }
+        return ChangeCoalescer.coalesce(pending).map { change in
+            PushItem(
+                change: PushChange(
+                    id: change.id, trackID: change.trackID, fieldID: change.fieldID, oldValue: change.oldValue,
+                    newValue: change.newValue, source: change.source.rawValue, createdAt: change.createdAt),
+                journalIDs: folded["\(change.trackID)|\(change.fieldID)"] ?? [change.id])
+        }
+    }
+
+    static func config(of items: [PushItem]) -> DirtyConfig {
+        var config = DirtyConfig()
+        for item in items { config.append(item.config) }
+        return config
+    }
+}
+
+extension PushBody {
+    init(items: [PushItem]) {
+        let config = PushItem.config(of: items)
+        self.init(
+            changes: items.compactMap(\.change), fields: config.fields, fieldOptions: config.fieldOptions,
+            rules: config.rules, savedViews: config.savedViews, settings: config.settings)
     }
 }

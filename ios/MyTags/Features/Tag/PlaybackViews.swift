@@ -18,7 +18,7 @@ struct WaveformBar: View {
         HStack(spacing: 10) {
             ZStack {
                 if case .unavailable = player.availability, player.currentTrackID == track.id {
-                    Text("Audio indisponible hors ligne")
+                    Text(app.sync.isOnline ? "Audio indisponible" : "Audio indisponible hors ligne")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)

@@ -168,6 +168,56 @@ extension AppDatabase {
         }
     }
 
+    /// Entries the server refused: kept (never deleted) but left out of pushes until `requeueRejected`.
+    func markRejected(ids: [String]) throws {
+        guard !ids.isEmpty else { return }
+        try pool.write { db in
+            for chunk in ids.chunked(into: 500) {
+                let marks = databaseQuestionMarks(count: chunk.count)
+                try db.execute(
+                    sql: "UPDATE journal SET status = 'rejected' WHERE status = 'pending' AND id IN (\(marks))",
+                    arguments: StatementArguments(chunk))
+            }
+        }
+    }
+
+    /// Offers every rejected entry and configuration row to the server again.
+    func requeueRejected() throws {
+        try pool.write { db in
+            try db.execute(sql: "UPDATE journal SET status = 'pending' WHERE status = 'rejected'")
+            try db.execute(sql: "UPDATE config_rows SET dirty = 1 WHERE dirty = 2")
+        }
+    }
+
+    /// Journal entries and configuration rows the server refused.
+    func rejectedCount() throws -> Int {
+        try pool.read { db in
+            let changes = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM journal WHERE status = 'rejected'") ?? 0
+            let config = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM config_rows WHERE dirty = 2") ?? 0
+            return changes + config
+        }
+    }
+
+    /// Whether a push has something to send (pending entries or configuration rows).
+    func hasPendingPush() throws -> Bool {
+        try pool.read { db in
+            try Bool.fetchOne(db, sql: """
+                SELECT EXISTS(SELECT 1 FROM journal WHERE status = 'pending')
+                    OR EXISTS(SELECT 1 FROM config_rows WHERE dirty = 1)
+                """) ?? false
+        }
+    }
+
+    /// Whether some edits never reached the server (rejected ones included).
+    func hasUnsentEdits() throws -> Bool {
+        try pool.read { db in
+            try Bool.fetchOne(db, sql: """
+                SELECT EXISTS(SELECT 1 FROM journal WHERE status IN ('pending', 'rejected'))
+                    OR EXISTS(SELECT 1 FROM config_rows WHERE dirty <> 0)
+                """) ?? false
+        }
+    }
+
     func pendingSummary() throws -> (trackIDs: Set<String>, count: Int) {
         try pool.read { db in
             let ids = try String.fetchAll(db, sql: "SELECT DISTINCT track_id FROM journal WHERE status = 'pending'")
@@ -240,7 +290,7 @@ extension AppDatabase {
             func upsertConfig<T: Encodable>(_ kind: ConfigKind, _ id: String, _ row: T, updatedAt: String) throws {
                 if let local = try Row.fetchOne(
                     db, sql: "SELECT json, dirty FROM config_rows WHERE kind = ? AND id = ?", arguments: [kind.rawValue, id]),
-                    (local["dirty"] as Int) == 1,
+                    (local["dirty"] as Int) != 0,
                     let localUpdated = Self.updatedAt(of: local["json"] as Data, decoder: decoder),
                     localUpdated > updatedAt
                 {
@@ -285,6 +335,14 @@ struct DirtyConfig: Sendable {
 
     var isEmpty: Bool {
         fields.isEmpty && fieldOptions.isEmpty && rules.isEmpty && savedViews.isEmpty && settings.isEmpty
+    }
+
+    mutating func append(_ other: DirtyConfig) {
+        fields += other.fields
+        fieldOptions += other.fieldOptions
+        rules += other.rules
+        savedViews += other.savedViews
+        settings += other.settings
     }
 }
 
@@ -337,18 +395,28 @@ extension AppDatabase {
 
     /// Clears the dirty flag of rows that were not edited again since they were pushed.
     func markConfigPushed(_ pushed: DirtyConfig) throws {
+        try setDirty(0, of: pushed)
+    }
+
+    /// Flags rows the server refused (`dirty = 2`): kept, but left out of pushes until
+    /// `requeueRejected` or a new local edit. Rows edited again since the push stay waiting.
+    func markConfigRejected(_ rejected: DirtyConfig) throws {
+        try setDirty(2, of: rejected)
+    }
+
+    private func setDirty(_ dirty: Int, of config: DirtyConfig) throws {
         let encoder = AppDatabase.makeEncoder()
         try pool.write { db in
-            func clean<T: Encodable>(_ kind: ConfigKind, _ id: String, _ row: T) throws {
+            func mark<T: Encodable>(_ kind: ConfigKind, _ id: String, _ row: T) throws {
                 try db.execute(
-                    sql: "UPDATE config_rows SET dirty = 0 WHERE kind = ? AND id = ? AND json = ?",
-                    arguments: [kind.rawValue, id, try encoder.encode(row)])
+                    sql: "UPDATE config_rows SET dirty = ? WHERE kind = ? AND id = ? AND json = ? AND dirty = 1",
+                    arguments: [dirty, kind.rawValue, id, try encoder.encode(row)])
             }
-            for row in pushed.fields { try clean(.fields, row.id, row) }
-            for row in pushed.fieldOptions { try clean(.fieldOptions, row.id, row) }
-            for row in pushed.rules { try clean(.rules, row.id, row) }
-            for row in pushed.savedViews { try clean(.savedViews, row.id, row) }
-            for row in pushed.settings { try clean(.settings, row.key, row) }
+            for row in config.fields { try mark(.fields, row.id, row) }
+            for row in config.fieldOptions { try mark(.fieldOptions, row.id, row) }
+            for row in config.rules { try mark(.rules, row.id, row) }
+            for row in config.savedViews { try mark(.savedViews, row.id, row) }
+            for row in config.settings { try mark(.settings, row.key, row) }
         }
     }
 }
@@ -374,11 +442,28 @@ extension AppDatabase {
     }
 
     /// Removes every local row (after unpairing, or before loading the demo).
-    func reset() throws {
+    ///
+    /// With `keepingUnsent`, edits that never reached the server stay: their journal entries
+    /// (pending or rejected), the values they wrote and the configuration rows not yet pushed.
+    /// They are sent after the next pairing (rule R7).
+    func reset(keepingUnsent: Bool = false) throws {
         try pool.write { db in
-            for table in ["tracks", "track_values", "config_rows", "journal", "cursors", "cache_entries", "sessions", "kv"] {
+            for table in ["tracks", "cursors", "cache_entries", "sessions", "kv"] {
                 try db.execute(sql: "DELETE FROM \(table)")
             }
+            guard keepingUnsent else {
+                for table in ["track_values", "config_rows", "journal"] {
+                    try db.execute(sql: "DELETE FROM \(table)")
+                }
+                return
+            }
+            try db.execute(sql: "DELETE FROM journal WHERE status NOT IN ('pending', 'rejected')")
+            try db.execute(sql: """
+                DELETE FROM track_values WHERE NOT EXISTS (
+                  SELECT 1 FROM journal
+                  WHERE journal.track_id = track_values.track_id AND journal.field_id = track_values.field_id)
+                """)
+            try db.execute(sql: "DELETE FROM config_rows WHERE dirty = 0")
         }
     }
 }

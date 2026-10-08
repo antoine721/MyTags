@@ -24,8 +24,13 @@ final class Downloader {
     @ObservationIgnored private var tasks: [String: URLSessionDownloadTask] = [:]
     @ObservationIgnored private var purposes: [String: Purpose] = [:]
     @ObservationIgnored private var waiters: [String: [CheckedContinuation<URL?, Never>]] = [:]
-    /// Completion handler iOS gives back when it relaunches the app for background downloads.
-    @ObservationIgnored var backgroundCompletion: (() -> Void)?
+    /// Tracks already retried once after a 409 or a 5xx.
+    @ObservationIgnored private var retried: Set<String> = []
+    /// Called when the server refuses the current device token (revoked).
+    @ObservationIgnored var onUnauthorized: (() -> Void)?
+    /// Completion handler iOS passes when it relaunches the app for background downloads. Static:
+    /// it can arrive before this object exists, and is called once the session has delivered its events.
+    static var backgroundCompletion: (() -> Void)?
 
     static let backgroundIdentifier = "mytags.trips"
 
@@ -136,12 +141,24 @@ final class Downloader {
         progress[trackID] = Double(written) / Double(expected)
     }
 
-    fileprivate func didFinish(_ trackID: String, file: URL?, status: Int, error: String?) {
+    fileprivate func didFinish(_ trackID: String, file: URL?, status: Int, error: String?, request: URLRequest?) {
+        let tracked = tasks[trackID] != nil || purposes[trackID] != nil
         let purpose = purposes[trackID] ?? .prefetch
         tasks[trackID] = nil
         purposes[trackID] = nil
         progress[trackID] = nil
+        // 409: the file was being replaced; 5xx: a passing Worker failure. One more try.
+        if status == 409 || (500..<600).contains(status), tracked, api != nil, let request,
+           retried.insert(trackID).inserted {
+            restart(trackID, request: request, purpose: purpose)
+            return
+        }
+        retried.remove(trackID)
         if purpose == .trip { tripRemaining = max(0, tripRemaining - 1) }
+        // Only a refusal of the current token: a download started before a new pairing does not count.
+        if status == 401, let api, request?.value(forHTTPHeaderField: "Authorization") == api.authorization {
+            onUnauthorized?()
+        }
         guard let file, (200..<300).contains(status) else {
             if let error { lastFailure = error }
             resume(trackID, with: nil)
@@ -151,12 +168,23 @@ final class Downloader {
             try cache.store(trackID: trackID, downloadedFile: file, kind: purpose == .trip ? .trip : .auto)
             resume(trackID, with: cache.localURL(for: trackID))
         } catch {
+            try? FileManager.default.removeItem(at: file)
             lastFailure = error.localizedDescription
             resume(trackID, with: nil)
         }
     }
 
-    fileprivate func backgroundEventsFinished() {
+    private func restart(_ trackID: String, request: URLRequest, purpose: Purpose) {
+        let task = (purpose == .trip ? background : foreground).downloadTask(with: request)
+        task.taskDescription = trackID
+        if waiters[trackID] != nil { task.priority = URLSessionTask.highPriority }
+        tasks[trackID] = task
+        purposes[trackID] = purpose
+        progress[trackID] = 0
+        task.resume()
+    }
+
+    fileprivate static func backgroundEventsFinished() {
         backgroundCompletion?()
         backgroundCompletion = nil
     }
@@ -191,10 +219,20 @@ private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unc
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         guard let id = downloadTask.taskDescription else { return }
         let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
+        let request = downloadTask.originalRequest
+        guard (200..<300).contains(status) else {
+            // An error body, not audio: never keep it.
+            try? FileManager.default.removeItem(at: location)
+            Task { @MainActor [weak owner] in
+                owner?.didFinish(id, file: nil, status: status, error: "HTTP \(status)", request: request)
+            }
+            return
+        }
         let kept = FileManager.default.temporaryDirectory.appending(path: "\(id)-\(UUID().uuidString).m4a")
         let moved = (try? FileManager.default.moveItem(at: location, to: kept)) != nil
         Task { @MainActor [weak owner] in
-            owner?.didFinish(id, file: moved ? kept : nil, status: status, error: nil)
+            owner?.didFinish(
+                id, file: moved ? kept : nil, status: status, error: moved ? nil : "Fichier illisible", request: request)
         }
     }
 
@@ -203,13 +241,13 @@ private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unc
         if (error as? URLError)?.code == .cancelled { return }
         let message = error.localizedDescription
         Task { @MainActor [weak owner] in
-            owner?.didFinish(id, file: nil, status: 0, error: message)
+            owner?.didFinish(id, file: nil, status: 0, error: message, request: nil)
         }
     }
 
     func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-        Task { @MainActor [weak owner] in
-            owner?.backgroundEventsFinished()
+        Task { @MainActor in
+            Downloader.backgroundEventsFinished()
         }
     }
 }

@@ -1,5 +1,8 @@
 import Foundation
 import MyTagsKit
+import os
+
+let syncLogger = Logger(subsystem: "mytags", category: "sync")
 
 /// Pull cursor of one table (docs/api.md).
 struct SyncCursor: Codable, Hashable, Sendable {
@@ -13,11 +16,40 @@ struct PullPage<Row: Decodable & Sendable>: Decodable, Sendable {
     let rows: [Row]
     let cursor: SyncCursor
     let hasMore: Bool
+    /// Rows this version cannot read (an unknown enum value...): left out and logged.
+    let skipped: Int
 
     enum CodingKeys: String, CodingKey {
         case rows, cursor
         case hasMore = "has_more"
     }
+
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        cursor = try c.decode(SyncCursor.self, forKey: .cursor)
+        hasMore = try c.decode(Bool.self, forKey: .hasMore)
+        // Row by row: one unreadable row must not block the page, and the cursor still moves past it.
+        var list = try c.nestedUnkeyedContainer(forKey: .rows)
+        var rows: [Row] = []
+        var skipped = 0
+        while !list.isAtEnd {
+            do {
+                rows.append(try list.decode(Row.self))
+            } catch {
+                _ = try list.decode(SkippedRow.self)
+                skipped += 1
+                syncLogger.error(
+                    "Skipped an unreadable \(String(describing: Row.self), privacy: .public) row: \(String(describing: error), privacy: .public)")
+            }
+        }
+        self.rows = rows
+        self.skipped = skipped
+    }
+}
+
+/// Consumes one array element without reading it.
+private struct SkippedRow: Decodable {
+    init(from decoder: any Decoder) throws {}
 }
 
 struct PullTables: Decodable, Sendable {
@@ -117,20 +149,34 @@ struct MeResponse: Decodable, Sendable {
 
 enum APIError: Error, LocalizedError {
     case unauthorized
+    case adminToken
     case http(Int, String)
     case offline
 
     var errorDescription: String? {
         switch self {
         case .unauthorized: "Appareil non autorisé : refaire « djtag pair »."
+        case .adminToken: "Ce code est un jeton administrateur : utiliser « djtag pair »."
         case let .http(code, message): "Erreur \(code) : \(message)"
         case .offline: "Pas de réseau."
         }
     }
 }
 
+/// What the sync engine needs from the Worker (a seam for tests).
+protocol SyncAPI: Sendable {
+    func pull(cursors: [String: SyncCursor], limit: Int) async throws -> PullResponse
+    func push(_ body: PushBody) async throws -> PushResponse
+}
+
 /// Talks to the `mytags-api` Worker. Safe to use from any task.
-struct APIClient: Sendable {
+struct APIClient: SyncAPI {
+    /// Errors that mean "no usable network" rather than a server problem.
+    static let offlineCodes: Set<URLError.Code> = [
+        .notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotConnectToHost, .cannotFindHost,
+        .dnsLookupFailed, .secureConnectionFailed, .internationalRoamingOff, .dataNotAllowed, .callIsActive,
+    ]
+
     let credentials: Credentials
     let session: URLSession
 
@@ -139,10 +185,13 @@ struct APIClient: Sendable {
         self.session = session
     }
 
+    /// `Authorization` header value of every request.
+    var authorization: String { "Bearer \(credentials.token)" }
+
     func request(path: String, method: String = "GET", body: Data? = nil) -> URLRequest {
         var request = URLRequest(url: credentials.baseURL.appending(path: path))
         request.httpMethod = method
-        request.setValue("Bearer \(credentials.token)", forHTTPHeaderField: "Authorization")
+        request.setValue(authorization, forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 30
         if let body {
             request.httpBody = body
@@ -181,8 +230,7 @@ struct APIClient: Sendable {
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: request)
-        } catch let error as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut,
-                                                .cannotConnectToHost, .dataNotAllowed].contains(error.code) {
+        } catch let error as URLError where Self.offlineCodes.contains(error.code) {
             throw APIError.offline
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.http(0, "réponse invalide") }

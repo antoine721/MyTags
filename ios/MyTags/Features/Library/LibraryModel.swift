@@ -25,11 +25,40 @@ final class LibraryModel {
     var searchText = ""
     var filter = LibraryFilter()
     var sort = LibrarySort.default
-    var selectedViewID: String?
+    var selectedViewID: String? {
+        didSet { if let selectedViewID { defaults.set(selectedViewID, forKey: Self.lastViewKey) } }
+    }
     var skipComplete = false
     private(set) var results: [String] = []
     private(set) var artists: [ArtistRow] = []
     @ObservationIgnored private var lastKey: Int?
+    @ObservationIgnored private var restoredView = false
+    @ObservationIgnored private let defaults: UserDefaults
+
+    private static let lastViewKey = "libraryLastViewID"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    /// Opens on the last chosen view, else on "À compléter": the list worth tagging.
+    /// Waits for the saved views, which arrive with the first sync after pairing.
+    func restoreView(store: LibraryStore) {
+        guard !restoredView else { return }
+        let views = store.document.savedViews.filter { !$0.isDeleted }
+        guard !views.isEmpty else { return }
+        restoredView = true
+        guard selectedViewID == nil, filter.activeCount == 0, searchText.isEmpty else { return }
+        let lastID = defaults.string(forKey: Self.lastViewKey)
+        let view = views.first { $0.id == lastID }
+            ?? views.first { $0.builtin && $0.filters.special.contains(SpecialFilter.incomplete.rawValue) }
+        if let view { apply(view) }
+    }
+
+    func selectedView(store: LibraryStore) -> SavedView? {
+        guard let selectedViewID else { return nil }
+        return store.document.savedViews.first { $0.id == selectedViewID && !$0.isDeleted }
+    }
 
     /// Title used for the Tag screen queue.
     func queueTitle(store: LibraryStore) -> String {

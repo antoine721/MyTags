@@ -36,13 +36,13 @@ enum DemoData {
                 let artist = artists[index % artists.count]
                 let title = titles[(index * 7) % titles.count] + variants[index % variants.count]
                 let bpm = Double([96, 100, 104, 110, 120, 128, 140][index % 7])
-                let duration = 150_000 + (index * 7_919) % 90_000
+                let duration = Int(DemoAudio.seconds * 1_000)  // the generated loop, so the start point is inside it
                 let genre = genres[index % genres.count]
                 let comment = index % 5 == 0 ? "fr extend sexy" : (index % 7 == 0 ? "8A - Energy 6" : "")
                 let track = Track(
                     id: UUID().uuidString.lowercased(), filePath: "/Demo/\(artist) - \(title).mp3", fileFormat: "mp3",
                     title: title, artist: artist, bpm: bpm, musicalKey: keys[index % keys.count], durationMs: duration,
-                    addedAt: now, startMs: duration / 3, waveform: waveform(seed: index, using: &generator),
+                    addedAt: now, startMs: 12_000, waveform: waveform(seed: index, using: &generator),
                     audioKey: nil, baseline: Baseline(genre: genre.isEmpty ? nil : genre, comment: comment.isEmpty ? nil : comment),
                     applyStatus: .aucun, updatedAt: now)
                 try db.execute(sql: "INSERT OR REPLACE INTO tracks (id, json) VALUES (?, ?)",
@@ -64,13 +64,15 @@ enum DemoData {
 
 /// Short generated drum loops at each demo track's BPM, so playback can be tried without a server.
 enum DemoAudio {
+    static let seconds: Double = 40
+
     @MainActor
     static func generate(for tracks: [Track], cache: AudioCache) async {
         for track in tracks {
             let bpm = track.bpm ?? 120
             let id = track.id
             let file = FileManager.default.temporaryDirectory.appending(path: "\(id).m4a")
-            let ok = await Task.detached(priority: .utility) { render(bpm: bpm, seconds: 40, to: file) }.value
+            let ok = await Task.detached(priority: .utility) { render(bpm: bpm, seconds: seconds, to: file) }.value
             if ok {
                 try? cache.store(trackID: id, downloadedFile: file, kind: .auto)
             }

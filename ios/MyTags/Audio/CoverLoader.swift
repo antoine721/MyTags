@@ -11,8 +11,15 @@ actor CoverLoader {
     private let folder: URL
     private nonisolated let memory = ImageMemoryCache()
     private var api: APIClient?
-    private var inFlight: [String: Task<UIImage?, Never>] = [:]
+    private var inFlight: [String: Task<Fetched, Never>] = [:]
+    /// Covers the server does not have (404), not asked again until the network comes back.
     private var missing: Set<String> = []
+
+    /// A downloaded cover, or none; only a 404 means the cover does not exist.
+    private struct Fetched: Sendable {
+        var image: UIImage?
+        var isMissing = false
+    }
 
     init() {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -22,6 +29,7 @@ actor CoverLoader {
 
     func configure(api: APIClient?) {
         self.api = api
+        missing.removeAll()
     }
 
     /// Memory-only lookup, usable synchronously from views through `cachedImage`.
@@ -41,29 +49,30 @@ actor CoverLoader {
             return decoded
         }
         if missing.contains(name) { return nil }
-        if let running = inFlight[name] { return await running.value }
+        if let running = inFlight[name] { return await running.value.image }
         guard let api else { return nil }
-        let task = Task<UIImage?, Never> {
+        let task = Task<Fetched, Never> {
             do {
                 let (data, response) = try await URLSession.shared.data(for: api.blobRequest(key: "\(name).jpg"))
-                guard (response as? HTTPURLResponse)?.statusCode == 200, let image = UIImage(data: data) else {
-                    return nil
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                guard status == 200, let image = UIImage(data: data) else {
+                    return Fetched(image: nil, isMissing: status == 404)
                 }
                 try? data.write(to: file, options: .atomic)
-                return await image.byPreparingForDisplay() ?? image
+                return Fetched(image: await image.byPreparingForDisplay() ?? image)
             } catch {
-                return nil
+                return Fetched(image: nil)
             }
         }
         inFlight[name] = task
-        let image = await task.value
+        let fetched = await task.value
         inFlight[name] = nil
-        if let image {
+        if let image = fetched.image {
             memory.set(image, forKey: name)
-        } else {
+        } else if fetched.isMissing {
             missing.insert(name)
         }
-        return image
+        return fetched.image
     }
 
     /// Fetches missing thumbnails in the background (Wi-Fi), a few at a time.

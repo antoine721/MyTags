@@ -46,8 +46,12 @@ struct LibraryView: View {
             .overlay { emptyState }
             .safeAreaInset(edge: .bottom) { bottomBar }
         }
-        .onAppear { model.refresh(store: app.store) }
+        .onAppear {
+            model.restoreView(store: app.store)
+            model.refresh(store: app.store)
+        }
         .onChange(of: app.store.dataVersion) {
+            model.restoreView(store: app.store)
             // Under the Tag screen the list is invisible: recompute once it closes.
             if !app.isTagScreenPresented { model.refresh(store: app.store) }
         }
@@ -106,7 +110,14 @@ struct LibraryView: View {
     private func open(at id: String) {
         app.openTagScreen(
             trackIDs: model.results, title: model.queueTitle(store: app.store), startAt: id,
-            skipComplete: false)
+            skipComplete: model.selectedView(store: app.store)?.skipComplete ?? false)
+    }
+
+    /// One tap from launch to tagging: the displayed list, from its first incomplete track.
+    private func startTagging() {
+        let ids = model.results
+        guard let first = ids.first(where: { app.store.snapshots[$0]?.isIncomplete == true }) ?? ids.first else { return }
+        open(at: first)
     }
 
     private func play(_ id: String) {
@@ -252,6 +263,18 @@ struct LibraryView: View {
                 .padding(.horizontal, 12)
             }
             SyncStatusBar()
+            if model.tab == .tracks && !model.results.isEmpty && !editMode.isEditing {
+                Button(action: startTagging) {
+                    Label("Taguer", systemImage: "tag.fill")
+                        .font(.headline)
+                        .padding(.horizontal, 12)
+                        .frame(height: 44)
+                }
+                .buttonStyle(.glassProminent)
+                .accessibilityIdentifier("tagButton")
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 16)
+            }
             if app.player.currentTrackID != nil && !app.isTagScreenPresented && !editMode.isEditing {
                 MiniPlayer(results: model.results, title: model.queueTitle(store: app.store))
             }

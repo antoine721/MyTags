@@ -26,10 +26,9 @@ struct TagScreen: View {
                 }
             }
             .padding(.horizontal, 16)
-            if let undo = session.undo {
-                UndoBanner(undo: undo) { session.performUndo() }
+            if session.currentTrack == nil {
+                undoBanner  // after validating the last track of the queue
                     .padding(.bottom, 8)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(Motion.spring(reduceMotion), value: session.undo)
@@ -91,6 +90,8 @@ struct TagScreen: View {
             TransportControls(
                 onPrevious: { session.previous() }, onNext: { session.next() },
                 canGoBack: session.queue.hasPrevious)
+                // Over the transport row, never over the stars or the values (spec 9.2 height budget).
+                .overlay { undoBanner }
                 .padding(.bottom, 8)
             Divider()
             Group {
@@ -101,9 +102,21 @@ struct TagScreen: View {
                 }
             }
             .padding(.top, 10)
-            Spacer(minLength: 56)
+            Spacer(minLength: 0)
         }
         .animation(Motion.stateFade, value: session.queue.currentIndex)
+    }
+
+    /// "Annuler" for 3 s: enters from below with a spring, leaves with a fade (spec 15).
+    @ViewBuilder private var undoBanner: some View {
+        if let undo = session.undo {
+            UndoBanner(undo: undo) { session.performUndo() }
+                .transition(undoTransition)
+        }
+    }
+
+    private var undoTransition: AnyTransition {
+        reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity)
     }
 
     private var trackTransition: AnyTransition {
