@@ -189,7 +189,12 @@ final class PlayerEngine {
 
     func play() {
         guard player.currentItem != nil else {
-            isPlaying = true
+            // A failed download is retried by pressing play again.
+            if availability == .unavailable, let track = currentTrack {
+                load(track, autoplay: true)
+            } else {
+                isPlaying = true
+            }
             return
         }
         activateSession()
