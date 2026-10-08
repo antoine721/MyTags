@@ -46,7 +46,12 @@ class Baseline:
         return getattr(self, tag.lower())
 
     def to_json(self) -> dict[str, Any]:
-        return {"genre": self.genre, "grouping": self.grouping, "comment": self.comment, "rating": self.rating}
+        return {
+            "genre": self.genre,
+            "grouping": self.grouping,
+            "comment": self.comment,
+            "rating": self.rating,
+        }
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any] | None) -> Baseline:

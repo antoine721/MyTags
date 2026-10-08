@@ -48,7 +48,9 @@ class IFFFile:
 def parse_iff(data: bytes, fmt: str) -> IFFFile:
     if fmt == "wav":
         if data[:4] != b"RIFF" or data[8:12] != b"WAVE":
-            raise ContainerError("not a RIFF/WAVE file" + (" (ID3 en tête de WAV)" if data[:3] == b"ID3" else ""))
+            raise ContainerError(
+                "not a RIFF/WAVE file" + (" (ID3 en tête de WAV)" if data[:3] == b"ID3" else "")
+            )
         big = False
     elif fmt == "aiff":
         if data[:4] != b"FORM" or data[8:12] not in (b"AIFF", b"AIFC"):
@@ -121,12 +123,16 @@ def replace_tag(data: bytes, loc: ID3Location, tag_bytes: bytes, wav_chunk_id: b
         new_data = tag_bytes + trailing
         if len(new_data) == chunk.size:
             return data[: chunk.data_offset] + new_data + data[chunk.data_offset + chunk.size :]
-        new_chunk = chunk.id + struct.pack(pack, len(new_data)) + new_data + (b"\x00" if len(new_data) & 1 else b"")
-        body = data[:chunk.offset] + new_chunk + data[chunk.end :]
+        new_chunk = (
+            chunk.id + struct.pack(pack, len(new_data)) + new_data + (b"\x00" if len(new_data) & 1 else b"")
+        )
+        body = data[: chunk.offset] + new_chunk + data[chunk.end :]
     else:
         cid = wav_chunk_id if loc.fmt == "wav" else b"ID3 "
         insert_at = min(len(data), 8 + iff.declared_size + (iff.declared_size & 1))
-        new_chunk = cid + struct.pack(pack, len(tag_bytes)) + tag_bytes + (b"\x00" if len(tag_bytes) & 1 else b"")
+        new_chunk = (
+            cid + struct.pack(pack, len(tag_bytes)) + tag_bytes + (b"\x00" if len(tag_bytes) & 1 else b"")
+        )
         body = data[:insert_at] + new_chunk + data[insert_at:]
     # The container grows or shrinks by exactly the bytes we changed inside it.
     form_size = iff.declared_size + (len(body) - len(data))

@@ -88,13 +88,23 @@ def read_managed(path: str | Path, fmt: str, opts: TagOptions) -> ManagedTags:
     if fmt == "m4a":
         m = mp4.read_managed(path, opts.mp4_rating_key)
         return ManagedTags(
-            m.genre, m.grouping, m.comment, stars_from_generic(m.rating_raw), m.rating_raw, m.issues,
+            m.genre,
+            m.grouping,
+            m.comment,
+            stars_from_generic(m.rating_raw),
+            m.rating_raw,
+            m.issues,
             {"freeform_keys": m.freeform_keys},
         )
     if fmt == "flac":
         f = flac.read_managed(Path(path).read_bytes(), opts.flac_keys)
         return ManagedTags(
-            f.genre, f.grouping, f.comment, stars_from_generic(f.rating_raw), f.rating_raw, f.issues,
+            f.genre,
+            f.grouping,
+            f.comment,
+            stars_from_generic(f.rating_raw),
+            f.rating_raw,
+            f.issues,
             {"vorbis_keys": f.keys},
         )
     raise TagWriteError(f"format non pris en charge : {fmt}")
@@ -146,7 +156,9 @@ def _raw_rating(fmt: str, stars: int, opts: TagOptions) -> int:
     return stars * 20
 
 
-def _raw_changes(fmt: str, changes: Mapping[str, str | int | None], opts: TagOptions) -> dict[str, str | int | None]:
+def _raw_changes(
+    fmt: str, changes: Mapping[str, str | int | None], opts: TagOptions
+) -> dict[str, str | int | None]:
     out: dict[str, str | int | None] = {}
     for role, value in changes.items():
         if role not in ROLES:
@@ -158,7 +170,9 @@ def _raw_changes(fmt: str, changes: Mapping[str, str | int | None], opts: TagOpt
     return out
 
 
-def write_managed(path: str | Path, fmt: str, changes: Mapping[str, str | int | None], opts: TagOptions) -> None:
+def write_managed(
+    path: str | Path, fmt: str, changes: Mapping[str, str | int | None], opts: TagOptions
+) -> None:
     """Write `changes` into `path` in place. Call this on a temporary copy, then verify it."""
     raw = _raw_changes(fmt, changes, opts)
     try:

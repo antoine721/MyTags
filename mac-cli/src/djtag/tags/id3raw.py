@@ -17,7 +17,7 @@ from mutagen._constants import GENRES
 HEADER_SIZE = 10
 _FRAME_ID = re.compile(rb"^[A-Z0-9]{4}$")
 _FRAME_ID_22 = re.compile(rb"^[A-Z0-9]{3}$")
-_GENRE_REF = re.compile(r"^\((\d+)\)(.*)$")
+_GENRE_REF = re.compile(r"^\((\d+)\)(.*)$", re.ASCII | re.DOTALL)
 
 # Format flags (second flag byte) that change how a frame payload must be decoded.
 # ID3v2.3: compression 0x80, encryption 0x40, grouping 0x20.
@@ -143,7 +143,9 @@ def _parse_frames(body: bytes, start: int, major: int, syncsafe: bool) -> tuple[
         end = pos + HEADER_SIZE + size
         if end > len(body):
             return frames, pos, False
-        frames.append(RawFrame(fid.decode("ascii"), body[pos + 8 : pos + 10], body[pos + 10 : end], body[pos:end]))
+        frames.append(
+            RawFrame(fid.decode("ascii"), body[pos + 8 : pos + 10], body[pos + 10 : end], body[pos:end])
+        )
         pos = end
     return frames, pos, _only_padding(body, pos)
 
@@ -211,7 +213,7 @@ def resolve_genre(text: str) -> str:
             return rest
         index = int(match.group(1))
         return GENRES[index] if index < len(GENRES) else text
-    if text.isdigit() and int(text) < len(GENRES):
+    if text.isascii() and text.isdigit() and int(text) < len(GENRES):
         return GENRES[int(text)]
     return text
 
@@ -408,7 +410,9 @@ class WriteOptions:
     comm_language: bytes = b"eng"
 
 
-def splice_frames(tag: ID3Tag | None, changes: Mapping[str, str | int | None], opts: WriteOptions) -> tuple[int, bytes]:
+def splice_frames(
+    tag: ID3Tag | None, changes: Mapping[str, str | int | None], opts: WriteOptions
+) -> tuple[int, bytes]:
     """Return (major version, frame bytes) with only the changed managed frames rewritten.
 
     `changes` maps 'genre' / 'grouping' / 'comment' / 'rating' (stars already converted to
@@ -485,4 +489,10 @@ def build_tag(major: int, revision: int, flags: int, frames: bytes, size: int) -
     """Header + frames + zero padding up to `size` bytes after the header."""
     if len(frames) > size:
         raise ID3Error("frames larger than the tag size")
-    return b"ID3" + bytes([major, revision, flags]) + encode_syncsafe(size) + frames + b"\x00" * (size - len(frames))
+    return (
+        b"ID3"
+        + bytes([major, revision, flags])
+        + encode_syncsafe(size)
+        + frames
+        + b"\x00" * (size - len(frames))
+    )

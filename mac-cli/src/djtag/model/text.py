@@ -5,7 +5,18 @@ from __future__ import annotations
 import re
 
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
-_ARTIST_SEPARATORS = (" feat. ", " feat ", " ft. ", " ft ", " featuring ", " & ", ", ", " x ", " vs. ", " vs ")
+_ARTIST_SEPARATORS = (
+    " feat. ",
+    " feat ",
+    " ft. ",
+    " ft ",
+    " featuring ",
+    " & ",
+    ", ",
+    " x ",
+    " vs. ",
+    " vs ",
+)
 
 
 def words(text: str) -> list[str]:

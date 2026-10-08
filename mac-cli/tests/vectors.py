@@ -29,14 +29,25 @@ def config(name: str) -> TagConfig:
     for pos, f in enumerate(spec["fields"]):
         fields.append(
             Field(
-                id=f["key"], key=f["key"], name=f["key"], kind=f["kind"], target_tag=f["target_tag"],
-                target_slot=f["target_slot"], position=pos,
+                id=f["key"],
+                key=f["key"],
+                name=f["key"],
+                kind=f["kind"],
+                target_tag=f["target_tag"],
+                target_slot=f["target_slot"],
+                position=pos,
             )
         )
         for opos, o in enumerate(f["options"]):
             value, aliases = (o, []) if isinstance(o, str) else (o["value"], o.get("aliases", []))
             options.append(
-                FieldOption(id=f"{f['key']}:{value}", field_id=f["key"], value=value, aliases=tuple(aliases), position=opos)
+                FieldOption(
+                    id=f"{f['key']}:{value}",
+                    field_id=f["key"],
+                    value=value,
+                    aliases=tuple(aliases),
+                    position=opos,
+                )
             )
     return TagConfig(fields, options, (), spec["settings"])
 

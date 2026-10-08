@@ -119,8 +119,14 @@ def tags_equal(a: str | int | None, b: str | int | None) -> bool:
 
 
 def differing_tags(target: Baseline, baseline: Baseline) -> list[str]:
-    return [t for t in ("genre", "grouping", "comment", "rating") if not tags_equal(getattr(target, t), getattr(baseline, t))]
+    return [
+        t
+        for t in ("genre", "grouping", "comment", "rating")
+        if not tags_equal(getattr(target, t), getattr(baseline, t))
+    ]
 
 
-def is_to_apply(file_format: str, baseline: Baseline, rows: Mapping[str, FieldValue], config: TagConfig) -> bool:
+def is_to_apply(
+    file_format: str, baseline: Baseline, rows: Mapping[str, FieldValue], config: TagConfig
+) -> bool:
     return bool(differing_tags(compute_targets(file_format, baseline, rows, config), baseline))
