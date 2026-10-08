@@ -1,0 +1,1331 @@
+{
+ "configs": {
+  "ambiguous": {
+   "settings": {
+    "comment.separator": " ",
+    "comment.empty_token": "()",
+    "multi.separator": "/",
+    "rating.write_formats": [
+     "mp3",
+     "wav",
+     "aiff"
+    ]
+   },
+   "fields": [
+    {
+     "key": "s1",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 1,
+     "options": [
+      "A",
+      "B"
+     ]
+    },
+    {
+     "key": "s2",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 2,
+     "options": [
+      "B",
+      "C"
+     ]
+    },
+    {
+     "key": "s3",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 3,
+     "options": [
+      "C",
+      "D"
+     ]
+    }
+   ]
+  },
+  "spaces": {
+   "settings": {
+    "comment.separator": " ",
+    "comment.empty_token": "()",
+    "multi.separator": "/",
+    "rating.write_formats": [
+     "mp3",
+     "wav",
+     "aiff"
+    ]
+   },
+   "fields": [
+    {
+     "key": "pays",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 1,
+     "options": [
+      "FR",
+      "US"
+     ]
+    },
+    {
+     "key": "type",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 2,
+     "options": [
+      "EDIT",
+      "RADIO EDIT",
+      "EDIT CLUB"
+     ]
+    },
+    {
+     "key": "attribut",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 3,
+     "options": [
+      "SEXY",
+      "CLUB SEXY",
+      "()"
+     ]
+    }
+   ]
+  },
+  "multi": {
+   "settings": {
+    "comment.separator": " ",
+    "comment.empty_token": "()",
+    "multi.separator": "/",
+    "rating.write_formats": [
+     "mp3",
+     "wav",
+     "aiff"
+    ]
+   },
+   "fields": [
+    {
+     "key": "pays",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 1,
+     "options": [
+      "FR",
+      "US"
+     ]
+    },
+    {
+     "key": "type",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 2,
+     "options": [
+      "EXTEND",
+      "REMIX"
+     ]
+    },
+    {
+     "key": "attribut",
+     "kind": "multi",
+     "target_tag": "COMMENT",
+     "target_slot": 3,
+     "options": [
+      "NICHE",
+      "SEXY",
+      "TIKTOK",
+      "()"
+     ]
+    }
+   ]
+  },
+  "dash": {
+   "settings": {
+    "comment.separator": " - ",
+    "comment.empty_token": "-",
+    "multi.separator": "/",
+    "rating.write_formats": [
+     "mp3",
+     "wav",
+     "aiff"
+    ]
+   },
+   "fields": [
+    {
+     "key": "pays",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 1,
+     "options": [
+      "FR",
+      "US"
+     ]
+    },
+    {
+     "key": "type",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 2,
+     "options": [
+      "EXTEND",
+      "REMIX"
+     ]
+    },
+    {
+     "key": "attribut",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 3,
+     "options": [
+      "SEXY",
+      "NICHE"
+     ]
+    }
+   ]
+  },
+  "aliases": {
+   "settings": {
+    "comment.separator": " ",
+    "comment.empty_token": "()",
+    "multi.separator": "/",
+    "rating.write_formats": [
+     "mp3",
+     "wav",
+     "aiff"
+    ]
+   },
+   "fields": [
+    {
+     "key": "genre",
+     "kind": "single",
+     "target_tag": "GENRE",
+     "target_slot": null,
+     "options": [
+      {
+       "value": "RAP FR",
+       "aliases": [
+        "Rap Français",
+        "RAPFR"
+       ]
+      },
+      "RAP US"
+     ]
+    },
+    {
+     "key": "pays",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 1,
+     "options": [
+      {
+       "value": "FR",
+       "aliases": [
+        "FRANCE"
+       ]
+      },
+      "US"
+     ]
+    },
+    {
+     "key": "type",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 2,
+     "options": [
+      "EXTEND",
+      "REMIX"
+     ]
+    },
+    {
+     "key": "attribut",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 3,
+     "options": [
+      "SEXY",
+      "()"
+     ]
+    }
+   ]
+  }
+ },
+ "comment_parse": [
+  {
+   "config": "default",
+   "comment": "FR EXTEND SEXY",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EXTEND"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "US REMIX ()",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "US"
+    ],
+    "type": [
+     "REMIX"
+    ],
+    "attribut": [
+     "()"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "fr extend sexy",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EXTEND"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "  FR \t EXTEND   SEXY \n",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EXTEND"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "FR EXTEND",
+   "status": "incomplet",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EXTEND"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "UK EDIT TIKTOK BONUS",
+   "status": "non_conforme",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "8A - Energy 6",
+   "status": "non_conforme",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "",
+   "status": "incomplet",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": null,
+   "status": "incomplet",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "   ",
+   "status": "incomplet",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "() REMIX SEXY",
+   "status": "conforme",
+   "values": {
+    "type": [
+     "REMIX"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": [
+    "pays"
+   ]
+  },
+  {
+   "config": "default",
+   "comment": "() () ()",
+   "status": "conforme",
+   "values": {
+    "attribut": [
+     "()"
+    ]
+   },
+   "explicit_empty": [
+    "pays",
+    "type"
+   ]
+  },
+  {
+   "config": "default",
+   "comment": "FR SEXY",
+   "status": "incomplet",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "SEXY",
+   "status": "incomplet",
+   "values": {
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "EXTEND FR",
+   "status": "non_conforme",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "FR FR",
+   "status": "non_conforme",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "default",
+   "comment": "FREXTEND SEXY",
+   "status": "non_conforme",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "ambiguous",
+   "comment": "B C",
+   "status": "incomplet",
+   "values": {
+    "s1": [
+     "B"
+    ],
+    "s2": [
+     "C"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "ambiguous",
+   "comment": "A B C",
+   "status": "conforme",
+   "values": {
+    "s1": [
+     "A"
+    ],
+    "s2": [
+     "B"
+    ],
+    "s3": [
+     "C"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "ambiguous",
+   "comment": "C",
+   "status": "incomplet",
+   "values": {
+    "s2": [
+     "C"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "ambiguous",
+   "comment": "D",
+   "status": "incomplet",
+   "values": {
+    "s3": [
+     "D"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "spaces",
+   "comment": "FR RADIO EDIT SEXY",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "RADIO EDIT"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "spaces",
+   "comment": "FR EDIT SEXY",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EDIT"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "spaces",
+   "comment": "FR EDIT CLUB SEXY",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EDIT CLUB"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "spaces",
+   "comment": "FR EDIT CLUB",
+   "status": "incomplet",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EDIT CLUB"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "multi",
+   "comment": "FR EXTEND SEXY/TIKTOK",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EXTEND"
+    ],
+    "attribut": [
+     "SEXY",
+     "TIKTOK"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "multi",
+   "comment": "FR EXTEND tiktok / sexy",
+   "status": "non_conforme",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "multi",
+   "comment": "FR EXTEND TIKTOK/SEXY",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EXTEND"
+    ],
+    "attribut": [
+     "SEXY",
+     "TIKTOK"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "dash",
+   "comment": "FR - EXTEND - SEXY",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EXTEND"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "dash",
+   "comment": "FR - - - SEXY",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": [
+    "type"
+   ]
+  },
+  {
+   "config": "dash",
+   "comment": "FR EXTEND SEXY",
+   "status": "non_conforme",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "aliases",
+   "comment": "france extend sexy",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EXTEND"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  }
+ ],
+ "comment_compose": [
+  {
+   "config": "default",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "EXTEND"
+    ],
+    "attribut": [
+     "SEXY"
+    ]
+   },
+   "expected": "FR EXTEND SEXY"
+  },
+  {
+   "config": "default",
+   "values": {
+    "pays": [
+     "FR"
+    ]
+   },
+   "expected": "FR () ()"
+  },
+  {
+   "config": "default",
+   "values": {},
+   "expected": "() () ()"
+  },
+  {
+   "config": "default",
+   "values": {
+    "attribut": [
+     "()"
+    ]
+   },
+   "expected": "() () ()"
+  },
+  {
+   "config": "multi",
+   "values": {
+    "pays": [
+     "US"
+    ],
+    "type": [
+     "REMIX"
+    ],
+    "attribut": [
+     "TIKTOK",
+     "NICHE"
+    ]
+   },
+   "expected": "US REMIX NICHE/TIKTOK"
+  },
+  {
+   "config": "dash",
+   "values": {
+    "pays": [
+     "US"
+    ],
+    "attribut": [
+     "NICHE"
+    ]
+   },
+   "expected": "US - - - NICHE"
+  },
+  {
+   "config": "spaces",
+   "values": {
+    "pays": [
+     "US"
+    ],
+    "type": [
+     "RADIO EDIT"
+    ],
+    "attribut": [
+     "CLUB SEXY"
+    ]
+   },
+   "expected": "US RADIO EDIT CLUB SEXY"
+  }
+ ],
+ "targets": [
+  {
+   "name": "untouched track keeps file tags",
+   "config": "default",
+   "format": "mp3",
+   "baseline": {
+    "genre": "Rap Fr",
+    "grouping": "VERT",
+    "comment": "fr extend sexy",
+    "rating": 3
+   },
+   "rows": {},
+   "targets": {
+    "genre": "Rap Fr",
+    "grouping": "VERT",
+    "comment": "fr extend sexy",
+    "rating": 3
+   },
+   "to_apply": false
+  },
+  {
+   "name": "genre chosen in app",
+   "config": "default",
+   "format": "mp3",
+   "baseline": {
+    "genre": "Rap Fr",
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "rows": {
+    "genre": {
+     "values": [
+      "RAP FR"
+     ]
+    }
+   },
+   "targets": {
+    "genre": "RAP FR",
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "genre identical to file",
+   "config": "default",
+   "format": "mp3",
+   "baseline": {
+    "genre": "RAP FR",
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "rows": {
+    "genre": {
+     "values": [
+      "RAP FR"
+     ]
+    }
+   },
+   "targets": {
+    "genre": "RAP FR",
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "to_apply": false
+  },
+  {
+   "name": "one comment slot changed keeps others from file",
+   "config": "default",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR EXTEND SEXY",
+    "rating": null
+   },
+   "rows": {
+    "pays": {
+     "values": [
+      "US"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "US EXTEND SEXY",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "non conforming comment replaced only when touched",
+   "config": "default",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "8A - Energy 6",
+    "rating": null
+   },
+   "rows": {
+    "type": {
+     "values": [
+      "REMIX"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "() REMIX ()",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "validated lowercase comment normalised",
+   "config": "default",
+   "format": "flac",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "fr extend sexy",
+    "rating": null
+   },
+   "rows": {
+    "pays": {
+     "values": [
+      "FR"
+     ],
+     "source": "file"
+    },
+    "type": {
+     "values": [
+      "EXTEND"
+     ],
+     "source": "file"
+    },
+    "attribut": {
+     "values": [
+      "SEXY"
+     ],
+     "source": "file"
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR EXTEND SEXY",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "incomplete comment completed with default",
+   "config": "default",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR EXTEND",
+    "rating": null
+   },
+   "rows": {
+    "attribut": {
+     "values": [
+      "()"
+     ],
+     "source": "default"
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR EXTEND ()",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "rating written for mp3",
+   "config": "default",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": null,
+    "rating": 3
+   },
+   "rows": {
+    "note": {
+     "rating": 4
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": null,
+    "rating": 4
+   },
+   "to_apply": true
+  },
+  {
+   "name": "rating not written for m4a",
+   "config": "default",
+   "format": "m4a",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": null,
+    "rating": 3
+   },
+   "rows": {
+    "note": {
+     "rating": 4
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": null,
+    "rating": 3
+   },
+   "to_apply": false
+  },
+  {
+   "name": "rating not written for flac but grouping is",
+   "config": "default",
+   "format": "flac",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "rows": {
+    "note": {
+     "rating": 5
+    },
+    "couleur": {
+     "values": [
+      "BLEU"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": "BLEU",
+    "comment": null,
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "cleared genre removes tag",
+   "config": "default",
+   "format": "mp3",
+   "baseline": {
+    "genre": "POP",
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "rows": {
+    "genre": {
+     "values": []
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "empty string baseline equals null target",
+   "config": "default",
+   "format": "mp3",
+   "baseline": {
+    "genre": "",
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "rows": {
+    "genre": {
+     "values": []
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "to_apply": false
+  },
+  {
+   "name": "grouping set on empty file",
+   "config": "default",
+   "format": "wav",
+   "baseline": {
+    "genre": null,
+    "grouping": "",
+    "comment": null,
+    "rating": null
+   },
+   "rows": {
+    "couleur": {
+     "values": [
+      "VERT"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": "VERT",
+    "comment": null,
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "comment from alias kept canonical",
+   "config": "aliases",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FRANCE EXTEND SEXY",
+    "rating": null
+   },
+   "rows": {
+    "type": {
+     "values": [
+      "REMIX"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR REMIX SEXY",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "renamed value via alias",
+   "config": "aliases",
+   "format": "mp3",
+   "baseline": {
+    "genre": "Rap Français",
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "rows": {
+    "genre": {
+     "values": [
+      "RAP FR"
+     ]
+    }
+   },
+   "targets": {
+    "genre": "RAP FR",
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "to_apply": true
+  }
+ ],
+ "title_contains": [
+  {
+   "title": "Song (Extended Mix)",
+   "pattern": "extended",
+   "match": true
+  },
+  {
+   "title": "Song (Extended Mix)",
+   "pattern": "extend",
+   "match": false
+  },
+  {
+   "title": "Song Extend",
+   "pattern": "extend",
+   "match": true
+  },
+  {
+   "title": "Song (Radio Edit)",
+   "pattern": "edit",
+   "match": true
+  },
+  {
+   "title": "Song (Radio Edit)",
+   "pattern": "radio edit",
+   "match": true
+  },
+  {
+   "title": "Song - Deluxe Edition",
+   "pattern": "edit",
+   "match": false
+  },
+  {
+   "title": "Song [RMX]",
+   "pattern": "rmx",
+   "match": true
+  },
+  {
+   "title": "Song (DJ X Remix)",
+   "pattern": "remix",
+   "match": true
+  },
+  {
+   "title": "Remixed",
+   "pattern": "remix",
+   "match": false
+  },
+  {
+   "title": "Song (Re-Edit)",
+   "pattern": "edit",
+   "match": true
+  },
+  {
+   "title": "Été 2024 edit",
+   "pattern": "ÉTÉ",
+   "match": true
+  },
+  {
+   "title": "",
+   "pattern": "edit",
+   "match": false
+  }
+ ],
+ "primary_artist": [
+  {
+   "artist": "Ninho feat. Jul",
+   "primary": "Ninho"
+  },
+  {
+   "artist": "Ninho ft. Jul",
+   "primary": "Ninho"
+  },
+  {
+   "artist": "Ninho Ft Jul",
+   "primary": "Ninho"
+  },
+  {
+   "artist": "Ninho featuring Jul",
+   "primary": "Ninho"
+  },
+  {
+   "artist": "Ninho & Jul",
+   "primary": "Ninho"
+  },
+  {
+   "artist": "Ninho, Jul",
+   "primary": "Ninho"
+  },
+  {
+   "artist": "Ninho x Jul",
+   "primary": "Ninho"
+  },
+  {
+   "artist": "Ninho vs. Jul",
+   "primary": "Ninho"
+  },
+  {
+   "artist": "Simon & Garfunkel",
+   "primary": "Simon"
+  },
+  {
+   "artist": "  Aya Nakamura  ",
+   "primary": "Aya Nakamura"
+  },
+  {
+   "artist": "Feat Lover",
+   "primary": "Feat Lover"
+  },
+  {
+   "artist": "",
+   "primary": ""
+  }
+ ],
+ "rating_read": [
+  {
+   "scheme": "popm",
+   "raw": 0,
+   "stars": null
+  },
+  {
+   "scheme": "popm",
+   "raw": 1,
+   "stars": 1
+  },
+  {
+   "scheme": "popm",
+   "raw": 31,
+   "stars": 1
+  },
+  {
+   "scheme": "popm",
+   "raw": 32,
+   "stars": 2
+  },
+  {
+   "scheme": "popm",
+   "raw": 64,
+   "stars": 2
+  },
+  {
+   "scheme": "popm",
+   "raw": 128,
+   "stars": 3
+  },
+  {
+   "scheme": "popm",
+   "raw": 196,
+   "stars": 4
+  },
+  {
+   "scheme": "popm",
+   "raw": 223,
+   "stars": 4
+  },
+  {
+   "scheme": "popm",
+   "raw": 224,
+   "stars": 5
+  },
+  {
+   "scheme": "popm",
+   "raw": 255,
+   "stars": 5
+  },
+  {
+   "scheme": "generic",
+   "raw": 0,
+   "stars": null
+  },
+  {
+   "scheme": "generic",
+   "raw": 3,
+   "stars": 3
+  },
+  {
+   "scheme": "generic",
+   "raw": 5,
+   "stars": 5
+  },
+  {
+   "scheme": "generic",
+   "raw": 20,
+   "stars": 1
+  },
+  {
+   "scheme": "generic",
+   "raw": 60,
+   "stars": 3
+  },
+  {
+   "scheme": "generic",
+   "raw": 100,
+   "stars": 5
+  },
+  {
+   "scheme": "generic",
+   "raw": 196,
+   "stars": 4
+  }
+ ],
+ "popm_write": {
+  "1": 1,
+  "2": 64,
+  "3": 128,
+  "4": 196,
+  "5": 255
+ }
+}
