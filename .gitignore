@@ -1,0 +1,57 @@
+# Audio — never commit music (R5)
+*.mp3
+*.m4a
+*.aac
+*.wav
+*.aif
+*.aiff
+*.flac
+*.ogg
+*.opus
+*.alac
+
+# Secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+*.pem
+*.p12
+*.mobileprovision
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+*.egg-info/
+dist/
+build/
+
+# Node / Cloudflare
+node_modules/
+.wrangler/
+coverage/
+
+# Xcode / Swift
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+.build/
+.swiftpm/
+Package.resolved.bak
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# djtag working data (backups, reports, caches)
+DJTag/
+reports/
+backups/
+
+# OS
+.DS_Store
+Thumbs.db
