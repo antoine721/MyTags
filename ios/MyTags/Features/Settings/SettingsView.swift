@@ -85,6 +85,9 @@ private struct AccountSection: View {
                     }
                 }
                 LabeledContent("Modifications en attente", value: "\(sync.waitingCount)")
+                if sync.rejectedCount > 0 {
+                    LabeledContent("Refusées par le serveur", value: "\(sync.rejectedCount)")
+                }
                 if let error = sync.lastError {
                     Text(error).font(.footnote).foregroundStyle(.secondary)
                 }
@@ -101,7 +104,7 @@ private struct AccountSection: View {
                 Button(app.isDemo ? "Quitter" : "Se déconnecter", role: .destructive) { app.unpair() }
             } message: {
                 if !app.isDemo && sync.waitingCount > 0 {
-                    Text("\(sync.waitingCount) modifications n'ont pas encore été envoyées et seront perdues.")
+                    Text("\(sync.waitingCount) modifications pas encore envoyées restent sur le téléphone et partiront après la prochaine connexion.")
                 } else {
                     Text("Les données locales et l'audio téléchargé seront effacés du téléphone.")
                 }

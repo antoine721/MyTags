@@ -17,6 +17,8 @@ final class AppModel {
     var isTagScreenPresented = false
     /// Recap shown after closing the Tag screen when at least 5 tracks were validated.
     var sessionSummary: SessionSummary?
+    /// Why the last pairing through a `mytags://pair` link failed (shown on the pairing screen).
+    var pairingError: String?
 
     let database: AppDatabase
     let store: LibraryStore
@@ -92,16 +94,32 @@ final class AppModel {
         let api = APIClient(credentials: credentials)
         sync.configure(api: api)
         downloader.api = api
+        downloader.onUnauthorized = { [weak self] in self?.handleUnauthorized() }
+        let covers = self.covers
+        // Network back: covers that failed are asked again, and the queue's prefetch restarts.
+        sync.onNetworkBack = { [weak self] in
+            Task { await covers.clearMissing() }
+            if let self, let session = self.tagSession { self.prefetcher.update(queue: session.queue) }
+        }
         await covers.configure(api: api)
     }
 
     /// Validates the pairing payload with the Worker, then downloads the catalogue.
     func pair(with credentials: Credentials) async throws {
+        pairingError = nil
         let api = APIClient(credentials: credentials)
         let me = try await api.me()
-        guard me.role == "device" || me.role == "admin" else { throw APIError.unauthorized }
+        // The admin token can write everything: it stays on the Mac.
+        if me.role == "admin" { throw APIError.adminToken }
+        guard me.role == "device" else { throw APIError.unauthorized }
         if isDemo {
+            // Nothing of the demo may survive in memory: its tracks would mix with the real catalogue.
+            player.stop()
+            closeTagScreen()
+            tagSession = nil
+            sessionSummary = nil
             leaveDemo()
+            await store.load()
         }
         try CredentialStore.save(credentials)
         await configure(credentials)
@@ -111,8 +129,17 @@ final class AppModel {
     }
 
     func handleOpenURL(_ url: URL) {
-        guard let credentials = Credentials(pairingText: url.absoluteString) else { return }
-        Task { try? await pair(with: credentials) }
+        guard let credentials = Credentials(pairingText: url.absoluteString) else {
+            pairingError = "Code non reconnu : lancer « djtag pair » sur le Mac."
+            return
+        }
+        Task {
+            do {
+                try await pair(with: credentials)
+            } catch {
+                pairingError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+        }
     }
 
     /// Forgets the device token and every local copy (tags already sent stay in the cloud).
@@ -124,7 +151,9 @@ final class AppModel {
         downloader.api = nil
         downloader.cancelTrip()
         cache.clearEverything()
-        try? database.reset()
+        // Edits not yet accepted by the server stay and are sent after the next pairing (R7).
+        // Demo edits are fake: they go.
+        try? database.reset(keepingUnsent: !isDemo)
         UserDefaults.standard.set(false, forKey: "demoMode")
         isDemo = false
         Task {
@@ -135,10 +164,12 @@ final class AppModel {
     }
 
     private func handleUnauthorized() {
-        // Keep local data: unsent edits must not be lost (R7). Only the token is dropped.
+        // Keep local data: unsent edits must not be lost (R7). Only the token is dropped, everywhere.
         CredentialStore.delete()
         sync.configure(api: nil)
         downloader.api = nil
+        let covers = self.covers
+        Task { await covers.configure(api: nil) }
         phase = .pairing
     }
 
@@ -168,6 +199,8 @@ final class AppModel {
     // MARK: Demo
 
     func startDemo() async {
+        // The demo replaces the local data: unsent edits of the real library must not go with it (R7).
+        if !isDemo, (try? database.hasUnsentEdits()) != false { return }
         try? database.reset()
         cache.clearEverything()
         DemoData.install(into: database)

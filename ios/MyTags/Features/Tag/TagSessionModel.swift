@@ -46,6 +46,15 @@ final class TagSessionModel {
     @ObservationIgnored private var undoTimer: Task<Void, Never>?
     @ObservationIgnored private var flashTimer: Task<Void, Never>?
     @ObservationIgnored private var fullQueue: TagQueue?
+    @ObservationIgnored private var saveTask: Task<Void, Never>?
+    @ObservationIgnored private var backgroundObserver: (any NSObjectProtocol)?
+    /// Track whose validation was refused for missing fields: it validates once they are filled.
+    @ObservationIgnored private var pendingValidationID: String?
+    /// When a validation last moved on: star taps right after it are ignored.
+    @ObservationIgnored private var advancedAt: ContinuousClock.Instant?
+
+    /// Session saves run in order, off the main thread.
+    private static let saveQueue = DispatchQueue(label: "mytags.session-save", qos: .utility)
 
     init(app: AppModel, queue: TagQueue, title: String, skipComplete: Bool) {
         self.app = app
@@ -78,9 +87,17 @@ final class TagSessionModel {
         let player = app.player
         player.onNext = { [weak self] in self?.next() }
         player.onPrevious = { [weak self] in self?.previous() }
-        player.onEnded = { [weak self] in self?.next(autoplay: true) }
         player.onUnavailable = { [weak self] id in self?.handleUnavailable(id) }
         player.onPlayStarted = { [weak self] _ in self?.app.sessions.activity() }
+        if backgroundObserver == nil {
+            backgroundObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    if self?.saveTask != nil { self?.saveNow(waiting: true) }
+                }
+            }
+        }
         if skipComplete, let id = queue.currentTrackID, store.snapshots[id]?.isIncomplete == false {
             queue.next(where: isWanted)
         }
@@ -93,7 +110,12 @@ final class TagSessionModel {
         if let record = app.sessions.end(), record.validatedCount >= 5 {
             app.sessionSummary = SessionSummary(current: record, previous: previous)
         }
-        app.database.setValue(Optional<SavedSession>.none, forKey: SavedSession.key)
+        if let backgroundObserver { NotificationCenter.default.removeObserver(backgroundObserver) }
+        backgroundObserver = nil
+        saveTask?.cancel()
+        saveTask = nil
+        // After the saves already queued, so none of them brings the closed session back.
+        Self.save(nil, to: app.database, waiting: true)
     }
 
     private func show(autoplay: Bool) {
@@ -108,11 +130,34 @@ final class TagSessionModel {
             app.player.prepare(store.tracks[nextID])
         }
         app.sessions.beginTrack(track.id)
+        pendingValidationID = nil
         persist()
     }
 
+    /// Saves the session for the next launch (spec 9.1) shortly after the last move: encoding a
+    /// queue of 5,000 ids at every track change would slow it down. Flushed when the app leaves.
     private func persist() {
-        app.database.setValue(SavedSession(queue: queue, title: title, skipComplete: skipComplete), forKey: SavedSession.key)
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            self?.saveNow(waiting: false)
+        }
+    }
+
+    private func saveNow(waiting: Bool) {
+        saveTask?.cancel()
+        saveTask = nil
+        Self.save(SavedSession(queue: queue, title: title, skipComplete: skipComplete), to: app.database, waiting: waiting)
+    }
+
+    private static func save(_ session: SavedSession?, to database: AppDatabase, waiting: Bool) {
+        let work = { @Sendable in Self.write(session, to: database) }
+        if waiting { saveQueue.sync(execute: work) } else { saveQueue.async(execute: work) }
+    }
+
+    private nonisolated static func write(_ session: SavedSession?, to database: AppDatabase) {
+        database.setValue(session, forKey: SavedSession.key)
     }
 
     // MARK: Navigation
@@ -171,33 +216,41 @@ final class TagSessionModel {
     // MARK: Values
 
     func tap(option: FieldOption, in field: Field) {
-        guard let track = currentTrack, let resolved else { return }
+        guard let trackID = queue.currentTrackID else { return }
+        select(option: option, in: field, trackID: trackID)
+    }
+
+    private func select(option: FieldOption, in field: Field, trackID: String) {
+        guard let resolved = store.resolve(trackID) else { return }
         app.sessions.tap()
         let current = resolved[field.id]
         let edit: ValueEdit
         if field.kind == .multi {
             if current?.state == .suggested, current?.value.optionIDs.contains(option.id) == true {
-                edit = ValueEdit(trackID: track.id, fieldID: field.id, value: current!.value, source: current?.source ?? .user)
+                edit = ValueEdit(trackID: trackID, fieldID: field.id, value: current!.value, source: current?.source ?? .user)
             } else {
                 var ids = current?.state == .confirmed ? current!.value.optionIDs : []
                 if let index = ids.firstIndex(of: option.id) { ids.remove(at: index) } else { ids.append(option.id) }
                 edit = ValueEdit(
-                    trackID: track.id, fieldID: field.id,
+                    trackID: trackID, fieldID: field.id,
                     value: FieldValue(optionIDs: config.sortedOptionIDs(ids, forField: field.id)), source: .user)
             }
         } else if current?.state == .confirmed, current?.value.optionIDs == [option.id] {
-            edit = ValueEdit(trackID: track.id, fieldID: field.id, value: FieldValue(), source: .user)
+            edit = ValueEdit(trackID: trackID, fieldID: field.id, value: FieldValue(), source: .user)
         } else if current?.state == .suggested, current?.value.optionIDs.contains(option.id) == true {
-            edit = ValueEdit(trackID: track.id, fieldID: field.id, value: current!.value, source: current?.source ?? .user)
+            edit = ValueEdit(trackID: trackID, fieldID: field.id, value: current!.value, source: current?.source ?? .user)
         } else {
-            edit = ValueEdit(trackID: track.id, fieldID: field.id, value: .option(option.id), source: .user)
+            edit = ValueEdit(trackID: trackID, fieldID: field.id, value: .option(option.id), source: .user)
         }
         if edit.source == .user { app.sessions.manualValue() }
         commit([edit])
         Haptics.shared.select()
+        validateIfPending(trackID)
     }
 
     func rate(_ stars: Int, field: Field) {
+        // The second tap of a double tap must not rate the track that just appeared.
+        if let advancedAt, ContinuousClock.now - advancedAt < .milliseconds(300) { return }
         guard let track = currentTrack else { return }
         app.sessions.tap()
         commit([ValueEdit(trackID: track.id, fieldID: field.id, value: .stars(stars), source: .user)])
@@ -210,6 +263,7 @@ final class TagSessionModel {
 
     func clearRating(field: Field) {
         guard let track = currentTrack else { return }
+        pendingValidationID = nil
         app.sessions.tap()
         commit([ValueEdit(trackID: track.id, fieldID: field.id, value: FieldValue(), source: .user)])
         Haptics.shared.select()
@@ -220,18 +274,19 @@ final class TagSessionModel {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         commit([ValueEdit(trackID: track.id, fieldID: field.id, value: FieldValue(text: trimmed.isEmpty ? nil : trimmed),
                           source: .user)])
+        validateIfPending(track.id)
     }
 
-    /// Writes edits, then the values of "apply" rules that this action made true.
+    /// Writes edits (all on one track), then the values of "apply" rules that this action made true.
     private func commit(_ edits: [ValueEdit]) {
         guard store.apply(edits) else {
             Haptics.shared.error()
             return
         }
-        guard let track = currentTrack, let after = resolved else { return }
+        guard let trackID = edits.first?.trackID, let after = store.resolve(trackID) else { return }
         let ruleEdits = after.applyModeRuleValues
             .filter { after[$0.key]?.hasRow == false }
-            .map { ValueEdit(trackID: track.id, fieldID: $0.key, value: $0.value, source: .rule) }
+            .map { ValueEdit(trackID: trackID, fieldID: $0.key, value: $0.value, source: .rule) }
         if !ruleEdits.isEmpty { store.apply(ruleEdits) }
     }
 
@@ -242,10 +297,12 @@ final class TagSessionModel {
         guard let track = currentTrack, let resolved else { return }
         let missing = Completeness.missingRequiredFields(resolved, config: config)
         guard missing.isEmpty else {
+            pendingValidationID = track.id
             flash(Set(missing))
             Haptics.shared.error()
             return
         }
+        pendingValidationID = nil
         let plan = ValidationPlan.make(resolved: resolved, config: config)
         let restore = plan.values.map { planned -> RestoreEdit in
             if let row = store.rows[track.id]?[planned.fieldID], !row.isDeleted {
@@ -262,9 +319,19 @@ final class TagSessionModel {
         Haptics.shared.success()
         let index = queue.currentIndex
         if app.settings.autoAdvance {
+            advancedAt = .now
             next(autoplay: true)
         }
         showUndo(Undo(trackID: track.id, index: index, restore: restore, label: "Validé"))
+    }
+
+    /// After a refused validation, the track validates itself as soon as its last missing required
+    /// field gets a value (the rating is already stored); the undo banner still comes back to it.
+    private func validateIfPending(_ trackID: String) {
+        guard pendingValidationID == trackID, queue.currentTrackID == trackID, let resolved,
+              Completeness.missingRequiredFields(resolved, config: config).isEmpty
+        else { return }
+        validate()
     }
 
     private func flash(_ fields: Set<String>) {
@@ -356,9 +423,10 @@ final class TagSessionModel {
     /// Creates a value for `field` and selects it on the current track.
     func addOption(_ text: String, to field: Field) async {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !value.isEmpty else { return }
+        // The track on screen now: it may change while the value is being saved.
+        guard !value.isEmpty, let trackID = queue.currentTrackID else { return }
         if let existing = config.option(fieldID: field.id, value: value) {
-            tap(option: existing, in: field)
+            select(option: existing, in: field, trackID: trackID)
             return
         }
         let position = (config.options(forField: field.id).map(\.position).max() ?? -1) + 1
@@ -367,7 +435,7 @@ final class TagSessionModel {
             updatedAt: Timestamp.string(from: Date()))
         await store.saveConfig(DirtyConfig(fieldOptions: [option]))
         if let saved = store.config.option(id: option.id) {
-            tap(option: saved, in: field)
+            select(option: saved, in: field, trackID: trackID)
         }
     }
 }

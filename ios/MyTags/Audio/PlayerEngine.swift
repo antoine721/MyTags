@@ -50,7 +50,6 @@ final class PlayerEngine {
     var startPoint: StartPoint { startPointProvider() }
     @ObservationIgnored var onNext: (() -> Void)?
     @ObservationIgnored var onPrevious: (() -> Void)?
-    @ObservationIgnored var onEnded: (() -> Void)?
     @ObservationIgnored var onUnavailable: ((String) -> Void)?
     @ObservationIgnored var onPlayStarted: ((String) -> Void)?
 
@@ -65,6 +64,8 @@ final class PlayerEngine {
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var isScrubbing = false
     @ObservationIgnored private var sessionActive = false
+    /// Last item switch or seek: an end-of-item notification right after one is not a real end.
+    @ObservationIgnored private var lastJumpAt = ContinuousClock.now
 
     init(downloader: Downloader, cache: AudioCache, covers: CoverLoader) {
         self.downloader = downloader
@@ -159,16 +160,24 @@ final class PlayerEngine {
             item = AVPlayerItem(url: url)
         }
         prepared = nil
+        // Silence the outgoing track before the swap: the new one starts with the 80 ms fade-in (spec 10).
+        fadeTask?.cancel()
+        player.pause()
+        player.volume = 0
         player.replaceCurrentItem(with: item)
+        lastJumpAt = .now
         cache.touch(track.id)
-        let target = startTime
+        let requested = startTime
         Task { [weak self] in
             guard let self else { return }
             await self.waitUntilReady(item)
             guard self.player.currentItem === item else { return }
-            if self.duration <= 0 {
-                let seconds = item.duration.seconds
-                if seconds.isFinite { self.duration = seconds }
+            var target = requested
+            let seconds = item.duration.seconds
+            if seconds.isFinite, seconds > 0 {
+                self.duration = seconds
+                // A start point past the real end would end the item at once.
+                target = min(target, max(0, seconds - 1))
             }
             self.seek(to: target, thenPlay: play)
             self.updateNowPlaying()
@@ -229,10 +238,12 @@ final class PlayerEngine {
     func seek(to seconds: Double, thenPlay play: Bool) {
         currentTime = seconds
         guard player.currentItem != nil else { return }
+        lastJumpAt = .now
         if play { player.volume = 0 }
+        // @Sendable: AVFoundation calls the completion on its own queue (no main-actor check may run there).
         player.seek(
             to: CMTime(seconds: seconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero
-        ) { [weak self] _ in
+        ) { @Sendable [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 if play {
@@ -296,10 +307,23 @@ final class PlayerEngine {
             let ended = (note.object as AnyObject?).map(ObjectIdentifier.init)
             MainActor.assumeIsolated {
                 guard let self, let current = self.player.currentItem, ended == ObjectIdentifier(current) else { return }
-                self.isPlaying = false
-                self.onEnded?()
+                self.handleEnd()
             }
         })
+    }
+
+    /// End of the track: play it again from the start point instead of moving on, so taps meant
+    /// for this track never land on another one; the DJ is still listening to decide.
+    private func handleEnd() {
+        guard ContinuousClock.now - lastJumpAt >= .seconds(1) else {
+            // Right after a switch or a seek: stale when still playing, otherwise the start point
+            // was at the very end; stop rather than loop on nothing.
+            if player.rate == 0 { pause() }
+            return
+        }
+        let end = player.currentItem.map { $0.duration.seconds } ?? duration
+        let length = end.isFinite && end > 0 ? end : duration
+        seek(to: startTime < length - 2 ? startTime : 0, thenPlay: true)
     }
 
     @ObservationIgnored private var wasPlayingBeforeInterruption = false
@@ -365,8 +389,14 @@ final class PlayerEngine {
         if let image = covers.cachedImage(coverKey: track.coverKey, size: .large)
             ?? covers.cachedImage(coverKey: track.coverKey, size: .small)
         {
-            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            info[MPMediaItemPropertyArtwork] = Self.artwork(image)
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    /// Built outside the main actor: MediaPlayer calls the handler on a background queue, where a
+    /// closure formed in a main-actor method would trap on Swift 6's isolation check.
+    private nonisolated static func artwork(_ image: UIImage) -> MPMediaItemArtwork {
+        MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }
 }
