@@ -110,17 +110,25 @@ def parse_tag(data: bytes) -> ID3Tag | None:
 
     if major == 2:
         frames, end = _parse_frames_22(body, start)
+    elif major == 3:
+        frames, end, ok = _parse_frames(body, start, major, syncsafe=False)
+        if not ok:
+            issues.append("cadres illisibles")
     else:
-        frames, end, ok = _parse_frames(body, start, major, syncsafe=(major == 4))
-        if not ok and major == 4:
-            # Some writers (old iTunes) stored plain integers in v2.4 frame sizes.
-            alt_frames, alt_end, alt_ok = _parse_frames(body, start, major, syncsafe=False)
-            if alt_ok:
-                frames, end = alt_frames, alt_end
-                issues.append("tailles de cadres v2.4 non conformes")
-            else:
-                issues.append("cadres illisibles")
-        elif not ok:
+        # ID3v2.4 sizes are syncsafe, but old iTunes wrote plain integers. Read both ways and
+        # only trust a reading when it is the single one that consumes the tag cleanly.
+        safe = _parse_frames(body, start, major, syncsafe=True)
+        plain = _parse_frames(body, start, major, syncsafe=False)
+        if safe[2] and plain[2] and [f.raw for f in safe[0]] != [f.raw for f in plain[0]]:
+            frames, end = safe[0], safe[1]
+            issues.append("tailles de cadres v2.4 ambiguës")
+        elif safe[2]:
+            frames, end = safe[0], safe[1]
+        elif plain[2]:
+            frames, end = plain[0], plain[1]
+            issues.append("tailles de cadres v2.4 non conformes")
+        else:
+            frames, end = safe[0], safe[1]
             issues.append("cadres illisibles")
     for frame in frames:
         if major in _UNSUPPORTED_FORMAT_FLAGS and len(frame.flags) == 2:
@@ -167,8 +175,8 @@ def _parse_frames_22(body: bytes, start: int) -> tuple[list[RawFrame], int]:
 
 
 def _only_padding(body: bytes, pos: int) -> bool:
-    # Tolerate junk after the frames only if it starts with a zero byte (common padding).
-    return pos >= len(body) or body[pos] == 0
+    """Everything after the last frame must be zero padding; anything else means misparsed frames."""
+    return not any(body[pos:])
 
 
 # -- text decoding -------------------------------------------------------------------------------
@@ -200,8 +208,8 @@ def decode_text_frame(data: bytes) -> str:
     if not data:
         return ""
     text = _decode(data[1:], data[0])
-    values = [v for v in text.split("\x00") if v != ""]
-    return "/".join(values)
+    values = [v.lstrip("\ufeff") for v in text.split("\x00")]
+    return "/".join(v for v in values if v != "")
 
 
 def resolve_genre(text: str) -> str:
@@ -427,20 +435,26 @@ def splice_frames(
         blocked = rating_blocked(tag, opts.popm_email)
         if blocked:
             raise ID3Error(blocked)
-    pending = dict(changes)
     out: list[bytes] = []
+    done: set[str] = set()
     frames = tag.frames if tag is not None else []
     for frame in frames:
         role = frame_role(frame, opts.popm_email)
-        if role is None or role not in pending:
+        if role is None or role not in changes:
             out.append(frame.raw)
             continue
-        value = pending.pop(role)
+        if role in done:
+            continue  # a duplicate of a rewritten managed frame would keep the stale value
+        done.add(role)
+        value = changes[role]
         if value is None:
+            if role == "rating" and decode_popm(frame.data).counter:
+                # Clearing the rating keeps the frame for its play counter (not managed by djtag).
+                out.append(_serialise(role, 0, major, frame, opts))
             continue
         out.append(_serialise(role, value, major, frame, opts))
-    for role, value in pending.items():
-        if value is not None:
+    for role, value in changes.items():
+        if role not in done and value is not None:
             out.append(_serialise(role, value, major, None, opts))
     return major, b"".join(out)
 

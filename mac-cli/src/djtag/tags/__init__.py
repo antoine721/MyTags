@@ -57,6 +57,7 @@ class ManagedTags:
     rating_raw: int | None = None
     issues: list[str] = field(default_factory=list)
     details: dict[str, object] = field(default_factory=dict)  # format specifics for the audit
+    rating_block: str | None = None  # why the rating cannot be written in this file
 
     def baseline(self) -> Baseline:
         return Baseline(self.genre, self.grouping, self.comment, self.rating)
@@ -84,6 +85,7 @@ def read_managed(path: str | Path, fmt: str, opts: TagOptions) -> ManagedTags:
                 "comm": _comm_summary(loc.tag),
                 "has_id3v1": data[-128:-125] == b"TAG",
             },
+            rating_block=id3raw.rating_blocked(loc.tag, opts.popm_email),
         )
     if fmt == "m4a":
         m = mp4.read_managed(path, opts.mp4_rating_key)
@@ -229,6 +231,6 @@ def preserved_digest(path: str | Path, fmt: str, opts: TagOptions) -> list[tuple
         fileobj = io.BytesIO(data)
         atoms, _path, items = mp4.read_ilst(fileobj)
         out = [(f"ilst.{i.key}", hashlib.sha256(i.raw).hexdigest()) for i in items if i.key not in managed]
-        out.append(("mp4.mdat", mp4.mdat_digest(fileobj, atoms)))
+        out.extend(mp4.structure_digest(fileobj, atoms))
         return out
     raise TagWriteError(f"format non pris en charge : {fmt}")

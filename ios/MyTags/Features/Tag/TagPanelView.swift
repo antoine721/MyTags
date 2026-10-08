@@ -192,11 +192,10 @@ struct UndoBanner: View {
                 .foregroundStyle(.secondary)
             Button("Annuler", action: action)
                 .font(.subheadline.weight(.semibold))
+                .accessibilityIdentifier("undoButton")
         }
         .padding(.horizontal, 18)
         .frame(height: 44)
         .glassEffect(.regular, in: .capsule)
-        .accessibilityElement(children: .combine)
-        .accessibilityAction(named: "Annuler", action)
     }
 }

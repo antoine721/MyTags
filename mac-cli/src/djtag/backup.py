@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import errno
+import fcntl
 import hashlib
 import json
 import os
@@ -22,15 +24,38 @@ def sha256_file(path: Path) -> str:
 
 
 def clone_or_copy(src: Path, dest: Path) -> str:
-    """Copy `src` to `dest` keeping metadata; returns 'clone' or 'copy'."""
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    """Copy `src` to `dest` keeping metadata and flush it to disk; returns 'clone' or 'copy'.
+
+    `dest.parent` must exist: djtag never creates folders, least of all in the music library.
+    """
+    method = "copy"
     if platform.system() == "Darwin":
         if subprocess.run(["cp", "-c", "-p", str(src), str(dest)], capture_output=True).returncode == 0:
-            return "clone"
-        subprocess.run(["cp", "-p", str(src), str(dest)], check=True, capture_output=True)
-        return "copy"
-    shutil.copy2(src, dest)
-    return "copy"
+            method = "clone"
+        else:
+            done = subprocess.run(["cp", "-p", str(src), str(dest)], capture_output=True, text=True)
+            if done.returncode != 0:
+                raise OSError(errno.EIO, (done.stderr or "cp a échoué").strip(), str(dest))
+    else:
+        shutil.copy2(src, dest)
+    fsync_file(dest)
+    return method
+
+
+def fsync_file(path: Path) -> None:
+    """Flush a file to stable storage (F_FULLFSYNC on macOS, where fsync only reaches the drive cache)."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        full = getattr(fcntl, "F_FULLFSYNC", None)
+        if full is not None:
+            try:
+                fcntl.fcntl(fd, full)
+                return
+            except OSError:
+                pass
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def fsync_dir(path: Path) -> None:
@@ -80,7 +105,9 @@ class Manifest:
                 indent=1,
             )
         )
+        fsync_file(tmp)
         tmp.replace(path)
+        fsync_dir(folder)
         return path
 
     @classmethod

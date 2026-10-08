@@ -127,7 +127,7 @@ extension AppDatabase {
 extension AppDatabase {
     /// Stores rows and their journal entries atomically (rule R7).
     func record(rows: [TrackValue], changes: [PendingChange]) throws {
-        let encoder = JSONEncoder()
+        let encoder = AppDatabase.makeEncoder()
         try pool.write { db in
             for row in rows {
                 try db.execute(
@@ -216,7 +216,7 @@ extension AppDatabase {
     /// Stores a pulled page. Values with a pending local edit and config rows edited locally
     /// after the server version are kept (the local edit is pushed next).
     func apply(_ batch: PullBatch) throws -> AppliedPull {
-        let encoder = JSONEncoder()
+        let encoder = AppDatabase.makeEncoder()
         let decoder = JSONDecoder()
         return try pool.write { db in
             var applied = AppliedPull()
@@ -289,9 +289,19 @@ struct DirtyConfig: Sendable {
 }
 
 extension AppDatabase {
+    /// Sorted keys: a row encoded twice gives the same bytes (Foundation's key order is unspecified),
+    /// which `markConfigPushed` relies on to spot rows edited again since their push.
+    static func makeEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }
+}
+
+extension AppDatabase {
     /// Stores locally edited configuration rows, flagged for the next push.
     func saveConfig(_ config: DirtyConfig, dirty: Bool = true) throws {
-        let encoder = JSONEncoder()
+        let encoder = AppDatabase.makeEncoder()
         try pool.write { db in
             func save<T: Encodable>(_ kind: ConfigKind, _ id: String, _ row: T) throws {
                 try db.execute(
@@ -327,7 +337,7 @@ extension AppDatabase {
 
     /// Clears the dirty flag of rows that were not edited again since they were pushed.
     func markConfigPushed(_ pushed: DirtyConfig) throws {
-        let encoder = JSONEncoder()
+        let encoder = AppDatabase.makeEncoder()
         try pool.write { db in
             func clean<T: Encodable>(_ kind: ConfigKind, _ id: String, _ row: T) throws {
                 try db.execute(
@@ -356,7 +366,7 @@ extension AppDatabase {
         try? pool.write { db in
             if let value {
                 try db.execute(
-                    sql: "INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", arguments: [key, try JSONEncoder().encode(value)])
+                    sql: "INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", arguments: [key, try AppDatabase.makeEncoder().encode(value)])
             } else {
                 try db.execute(sql: "DELETE FROM kv WHERE key = ?", arguments: [key])
             }

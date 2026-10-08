@@ -99,6 +99,12 @@ def build_plan(
         if not tags:
             continue
         warnings: list[str] = []
+        if "rating" in tags and targets.rating is not None and not 1 <= targets.rating <= 5:
+            tags.remove("rating")
+            warnings.append(f"note non écrite : valeur invalide ({targets.rating})")
+            targets = Baseline(targets.genre, targets.grouping, targets.comment, baseline.rating)
+            if not tags:
+                continue
         if "rating" in tags and fmt in containers.ID3_FORMATS and not settings.popm_email:
             tags.remove("rating")
             popm_missing += 1

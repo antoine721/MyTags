@@ -23,11 +23,14 @@ Run every command from the `mac-cli/` folder of the repository with `uv run djta
    - First real use (no previous application in `status.last_runs`): propose `--limit 20` first and a
      check in Serato before the rest (rule R4 / spec phase 6).
 5. **Apply** — `uv run djtag apply --yes --json` (add `--limit N` if agreed).
-   - Exit 3: safety refusal — show the message, stop.
+   - Exit 3: safety refusal — show the message, stop. If `stopped` is set, Serato was opened during
+     the run: the files before it are written (and reported), the rest untouched; once Serato is
+     closed, the same steps resume where it stopped.
    - Exit 2: conflicts — go to "Conflicts".
    - Exit 1: errors — list them (the files were restored or never touched), stop.
-6. **Report** — give: written / conflicts / errors, the application id, the report path, and how to undo:
-   `uv run djtag rollback <id>`.
+6. **Report** — give: written / already up to date / conflicts / errors, the application id, the report
+   path, and how to undo: `uv run djtag rollback <id>`. Files reported `already` ("déjà à jour") were
+   written by an earlier run that could not report back; nothing was rewritten.
 7. **Serato** — remind: in Serato DJ Pro 4, select the modified tracks, right-click › "Re-Scan File Info"
    (see `docs/serato.md`).
 
@@ -42,8 +45,9 @@ List them (path + message) and ask, track by track or for all at once:
 ## Undo
 
 « annule la dernière application » → find the id in `djtag status --json` (`last_runs`), confirm with the
-user, then `uv run djtag rollback <id> --yes --json`. A file modified after the application is skipped
-unless the user explicitly asks to force it (`--force`).
+user, then `uv run djtag rollback <id> --yes --json`. A file modified, moved or deleted after the
+application is skipped unless the user explicitly asks to force it (`--force`); even then djtag never
+re-creates a folder.
 
 ## Never
 
