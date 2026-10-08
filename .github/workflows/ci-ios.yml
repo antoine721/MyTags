@@ -1,0 +1,61 @@
+name: ci-ios
+
+# macOS minutes are expensive: run on pull requests to main, on demand, and on pushes to
+# work branches that touch the iOS code.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths: ["ios/**", "shared/**", ".github/workflows/ci-ios.yml"]
+  push:
+    branches: ["claude/**"]
+    paths: ["ios/**", ".github/workflows/ci-ios.yml"]
+
+concurrency:
+  group: ci-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kit:
+    name: MyTagsKit (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.2-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        working-directory: ios/MyTagsKit
+        run: swift test
+
+  app:
+    name: App (simulator build and tests)
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select the newest Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+      - name: Check shared resources are in sync
+        run: cmp shared/default-config.json ios/MyTags/Resources/default-config.json
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/MyTags.xcodeproj -scheme MyTags -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log | grep -E "error:|warning: |BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+      - name: Test
+        run: |
+          set -o pipefail
+          SIM=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in sorted(d.items(), reverse=True) if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+          xcodebuild -project ios/MyTags.xcodeproj -scheme MyTags -destination "id=$SIM" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO test 2>&1 | tee test.log | grep -E "error:|Test (Suite|Case).*(passed|failed)|✔|✘|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" test.log
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-logs
+          path: "*.log"

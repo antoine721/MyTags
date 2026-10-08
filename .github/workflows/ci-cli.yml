@@ -1,0 +1,26 @@
+name: ci-cli
+
+on:
+  push:
+    paths: ["mac-cli/**", "shared/**", ".github/workflows/ci-cli.yml"]
+  pull_request:
+    paths: ["mac-cli/**", "shared/**", ".github/workflows/ci-cli.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mac-cli
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audio tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libchromaprint-tools
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - name: Shared config in sync
+        run: cmp ../shared/default-config.json src/djtag/data/default-config.json
+      - run: uv run ruff check src tests
+      - run: uv run ruff format --check src tests
+      - run: uv run pyright
+      - run: uv run pytest -q

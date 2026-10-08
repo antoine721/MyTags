@@ -1,0 +1,8 @@
+// The only file to edit before installing on your iPhone (see docs/ios.md).
+//
+// DEVELOPMENT_TEAM: your Personal Team id (Xcode › Settings › Accounts › your Apple ID).
+// Leave it empty and pick the team in Xcode › MyTags target › Signing & Capabilities instead.
+DEVELOPMENT_TEAM =
+
+// Must be unique on Apple's side with a free account: change the prefix if Xcode refuses it.
+APP_BUNDLE_ID = fr.antoine721.mytags

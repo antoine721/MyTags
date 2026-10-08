@@ -1,0 +1,348 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		05619B50067A1463E82189A9 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = A3E30B1CF034BE2488B0472B /* GRDB */; };
+		D0CBAA91C3D9B6287E36D725 /* MyTagsKit in Frameworks */ = {isa = PBXBuildFile; productRef = F5DAA728789A8560ED414455 /* MyTagsKit */; };
+		E143B7ED39912319A8CC7448 /* MyTagsKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7C5D518F5550CDAD58C3D5DF /* MyTagsKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		431387EB7262E1CFC79B125E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4DC844ABCCFC0D132D087C1C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6439CF22188FA14BBD363342;
+			remoteInfo = MyTags;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		7BCCADA3021C07D12E775CB5 /* MyTags.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyTags.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		13CE9A6819AD5B20AA06C438 /* MyTagsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyTagsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7010ADE9F053A66B6F0CE1C1 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		BED78E1F2D69E8C2AED463F3 /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
+		605D92B03CDDD17F20CDC9EC /* Tests.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Tests.xcconfig; sourceTree = "<group>"; };
+		CF1ED2A26A0CCB192738BB8D /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		BB5944C6515D6D2B678426AB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		095FEE2E633C50D24407F2D6 /* MyTags */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MyTags;
+			sourceTree = "<group>";
+		};
+		516831D832DDC7318520265A /* MyTagsTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MyTagsTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F72F053D4455B87BA57FD8AA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				05619B50067A1463E82189A9 /* GRDB in Frameworks */,
+				D0CBAA91C3D9B6287E36D725 /* MyTagsKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4461DC475326A3AFDFB239B1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E143B7ED39912319A8CC7448 /* MyTagsKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		FAD58DE7366495DB4650CFEF = {
+			isa = PBXGroup;
+			children = (
+				095FEE2E633C50D24407F2D6 /* MyTags */,
+				516831D832DDC7318520265A /* MyTagsTests */,
+				6CC639B45892D4DB72603DD9 /* Config */,
+				86024CAD1E83101D97359D73 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6CC639B45892D4DB72603DD9 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				7010ADE9F053A66B6F0CE1C1 /* Base.xcconfig */,
+				BED78E1F2D69E8C2AED463F3 /* App.xcconfig */,
+				605D92B03CDDD17F20CDC9EC /* Tests.xcconfig */,
+				CF1ED2A26A0CCB192738BB8D /* Signing.xcconfig */,
+				BB5944C6515D6D2B678426AB /* Info.plist */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		86024CAD1E83101D97359D73 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7BCCADA3021C07D12E775CB5 /* MyTags.app */,
+				13CE9A6819AD5B20AA06C438 /* MyTagsTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6439CF22188FA14BBD363342 /* MyTags */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AC573CC2B6EF8ABF3A944EA0 /* Build configuration list for PBXNativeTarget "MyTags" */;
+			buildPhases = (
+				A26B49697F3E690398527AAB /* Sources */,
+				F72F053D4455B87BA57FD8AA /* Frameworks */,
+				509E3C5AD660F43AEF16CAB4 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				095FEE2E633C50D24407F2D6 /* MyTags */,
+			);
+			name = MyTags;
+			packageProductDependencies = (
+				A3E30B1CF034BE2488B0472B /* GRDB */,
+				F5DAA728789A8560ED414455 /* MyTagsKit */,
+			);
+			productName = MyTags;
+			productReference = 7BCCADA3021C07D12E775CB5 /* MyTags.app */;
+			productType = "com.apple.product-type.application";
+		};
+		384AED6A9A6E51F8FA09FB01 /* MyTagsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2C2D424D7E8A96956AB9EDA0 /* Build configuration list for PBXNativeTarget "MyTagsTests" */;
+			buildPhases = (
+				0D54EC55F713D1A39628A163 /* Sources */,
+				4461DC475326A3AFDFB239B1 /* Frameworks */,
+				EAAE8B7B14206700D6CFCF72 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2254342BECCEAFBD04538E0A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				516831D832DDC7318520265A /* MyTagsTests */,
+			);
+			name = MyTagsTests;
+			packageProductDependencies = (
+				7C5D518F5550CDAD58C3D5DF /* MyTagsKit */,
+			);
+			productName = MyTagsTests;
+			productReference = 13CE9A6819AD5B20AA06C438 /* MyTagsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4DC844ABCCFC0D132D087C1C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					6439CF22188FA14BBD363342 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					384AED6A9A6E51F8FA09FB01 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = 6439CF22188FA14BBD363342;
+					};
+				};
+			};
+			buildConfigurationList = A7492CCDE30BE8F54F16B52E /* Build configuration list for PBXProject "MyTags" */;
+			developmentRegion = fr;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				fr,
+				Base,
+			);
+			mainGroup = FAD58DE7366495DB4650CFEF;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D82E41BECB3A947459E7AAE0 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				D87A19797BF8005D0DAFAE1D /* XCLocalSwiftPackageReference "MyTagsKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 86024CAD1E83101D97359D73 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6439CF22188FA14BBD363342 /* MyTags */,
+				384AED6A9A6E51F8FA09FB01 /* MyTagsTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		509E3C5AD660F43AEF16CAB4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EAAE8B7B14206700D6CFCF72 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A26B49697F3E690398527AAB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0D54EC55F713D1A39628A163 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		2254342BECCEAFBD04538E0A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6439CF22188FA14BBD363342 /* MyTags */;
+			targetProxy = 431387EB7262E1CFC79B125E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		EC86DC4F4B4C60C3EC031655 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7010ADE9F053A66B6F0CE1C1 /* Base.xcconfig */;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		7BF40F069D95C38DE60AA602 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7010ADE9F053A66B6F0CE1C1 /* Base.xcconfig */;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		0F9FC8EE2C99E07A9753399D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BED78E1F2D69E8C2AED463F3 /* App.xcconfig */;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		1483FA26082F598A11F242FF /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BED78E1F2D69E8C2AED463F3 /* App.xcconfig */;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		74552497E519648B383D6A90 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 605D92B03CDDD17F20CDC9EC /* Tests.xcconfig */;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		0B861AF66ECE710E9705AE9F /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 605D92B03CDDD17F20CDC9EC /* Tests.xcconfig */;
+			buildSettings = {
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A7492CCDE30BE8F54F16B52E /* Build configuration list for PBXProject "MyTags" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EC86DC4F4B4C60C3EC031655 /* Debug */,
+				7BF40F069D95C38DE60AA602 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AC573CC2B6EF8ABF3A944EA0 /* Build configuration list for PBXNativeTarget "MyTags" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0F9FC8EE2C99E07A9753399D /* Debug */,
+				1483FA26082F598A11F242FF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2C2D424D7E8A96956AB9EDA0 /* Build configuration list for PBXNativeTarget "MyTagsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				74552497E519648B383D6A90 /* Debug */,
+				0B861AF66ECE710E9705AE9F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D87A19797BF8005D0DAFAE1D /* XCLocalSwiftPackageReference "MyTagsKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = MyTagsKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D82E41BECB3A947459E7AAE0 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A3E30B1CF034BE2488B0472B /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D82E41BECB3A947459E7AAE0 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		F5DAA728789A8560ED414455 /* MyTagsKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D87A19797BF8005D0DAFAE1D /* XCLocalSwiftPackageReference "MyTagsKit" */;
+			productName = MyTagsKit;
+		};
+		7C5D518F5550CDAD58C3D5DF /* MyTagsKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D87A19797BF8005D0DAFAE1D /* XCLocalSwiftPackageReference "MyTagsKit" */;
+			productName = MyTagsKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 4DC844ABCCFC0D132D087C1C /* Project object */;
+}
