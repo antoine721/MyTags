@@ -64,6 +64,7 @@ enum DemoData {
 
 /// Short generated drum loops at each demo track's BPM, so playback can be tried without a server.
 enum DemoAudio {
+    @MainActor
     static func generate(for tracks: [Track], cache: AudioCache) async {
         for track in tracks {
             let bpm = track.bpm ?? 120
