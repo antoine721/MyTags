@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import shutil
+import unicodedata
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
@@ -47,9 +48,10 @@ SERATO_OPENED_DURING_RUN = (
     "Serato DJ a été ouvert pendant l'application : arrêt avant le fichier suivant (règle R6)."
 )
 TRIAL_CHECK = (
-    "Dans Serato DJ, glisser le dossier des copies dans la bibliothèque, puis comparer chaque copie à son "
-    "original : cue points, boucles, beatgrid, couleurs et aperçu identiques ; nouveaux GENRE, GROUPING, "
-    "COMMENT et note visibles. Les originaux et le cloud n'ont pas changé."
+    "Dans Serato DJ : créer un crate « Essai MyTags » et y glisser le dossier des copies. Comparer chaque "
+    "copie à son original (colonne Location pour les distinguer) : cue points, boucles, beatgrid, couleurs "
+    "et aperçu identiques ; nouveaux GENRE, GROUPING, COMMENT et note visibles. Ensuite, retirer les copies "
+    "de Serato avant de supprimer le dossier. Les originaux et le cloud n'ont pas changé."
 )
 SERATO_RESCAN = (
     "Dans Serato DJ Pro 4 : sélectionner les morceaux modifiés, clic droit › « Re-Scan File Info ». "
@@ -365,25 +367,35 @@ def _without_blocked_rating(item: TrackPlan, block: str | None) -> tuple[TrackPl
     return replace(item, changes=changes, targets=targets), block
 
 
-def _apply_one(
-    ctx: ApplyContext, item: TrackPlan, index: int, backup_dir: Path, manifest: Manifest, opts: TagOptions
-) -> TrackOutcome:
+@dataclass
+class _Ready:
+    """A track that passed every pre-check and has tags to write."""
+
+    item: TrackPlan
+    path: Path
+    target: Path  # the file to write (a library symlink is followed)
+    expected: Baseline
+    todo: dict[str, str | int | None]
+    note: str | None
+
+
+def _prepare(item: TrackPlan, opts: TagOptions, outcome: TrackOutcome) -> _Ready | None:
+    """Pre-checks shared by apply and the trial on copies; fills `outcome` and returns None to stop."""
     path = Path(item.path)
-    outcome = TrackOutcome(item.track_id, item.path, "error", changes=_change_rows(item))
     if not path.exists():
         outcome.message = "fichier introuvable (lancer `djtag import`)"
-        return outcome
+        return None
     target = real_target(path)
     try:
         managed = read_managed(target, item.format, opts)
     except Exception as exc:
         outcome.message = f"lecture impossible : {exc}"
-        return outcome
+        return None
     item, note = _without_blocked_rating(item, managed.rating_block)
     outcome.changes = _change_rows(item)
     if not item.changes:
         outcome.status, outcome.message = "skipped", note
-        return outcome
+        return None
     current = managed.baseline()
     expected = _expected(item)
     # Each tag must be as imported, or already as wanted (a run interrupted before it told the cloud).
@@ -395,22 +407,40 @@ def _apply_one(
     ]
     if foreign:
         outcome.status, outcome.message = "conflict", "modifié depuis l'import : " + ", ".join(foreign)
-        return outcome
+        return None
     if not item.fingerprint:
         outcome.status, outcome.message = (
             "conflict",
             "empreinte acoustique inconnue : relancer `djtag import`",
         )
-        return outcome
+        return None
     f = fp.compute(target)
     if f is None or f.digest != item.fingerprint:
         outcome.status, outcome.message = "conflict", "empreinte acoustique différente (fichier remplacé ?)"
-        return outcome
+        return None
     outcome.expected = expected
     todo = {c.tag: c.new for c in item.changes if not tags_equal(getattr(current, c.tag), c.new)}
     if not todo:
         outcome.status, outcome.message = "already", "déjà à jour"
+        return None
+    return _Ready(item, path, target, expected, todo, note)
+
+
+def _apply_one(
+    ctx: ApplyContext, item: TrackPlan, index: int, backup_dir: Path, manifest: Manifest, opts: TagOptions
+) -> TrackOutcome:
+    outcome = TrackOutcome(item.track_id, item.path, "error", changes=_change_rows(item))
+    ready = _prepare(item, opts, outcome)
+    if ready is None:
         return outcome
+    item, path, target, expected, todo, note = (
+        ready.item,
+        ready.path,
+        ready.target,
+        ready.expected,
+        ready.todo,
+        ready.note,
+    )
     if ctx.dry_run:
         outcome.status, outcome.message = "dry_run", note
         return outcome
@@ -569,26 +599,36 @@ def _write_reports(s: Settings, run: RunResult) -> None:
 
 
 def run_trial(ctx: ApplyContext, dest: Path) -> RunResult:
-    """Write the pending tags into copies placed in `dest`, outside the library (rule R4).
+    """Write the pending tags into copies in a new subfolder of `dest`, outside the library (rule R4).
 
     The library, the cloud and the import state are left untouched: the copies are meant to be
     opened in Serato and compared with the originals before the first real application.
     """
     s = ctx.settings
     dest = dest.expanduser().resolve()
-    for folder in s.music_folders:
-        root = folder.expanduser().resolve()
-        if dest == root or root in dest.parents or dest in root.parents:
-            raise ApplyRefused(f"Le dossier des copies doit être hors des dossiers de musique ({root}).")
+    _check_trial_folder(dest, s.music_folders)
     if serato.is_running():
         raise ApplyRefused(SERATO_OPEN)
+    if not fp.available():
+        raise ApplyRefused("fpcalc est introuvable : `brew install chromaprint`.")
     with exclusive_run():
-        dest.mkdir(parents=True, exist_ok=True)
-        run = RunResult(new_run_id(), "trial", now_iso(), backup_dir=str(dest))
+        run = RunResult(new_run_id(), "trial", now_iso())
+        folder = dest / f"essai-{run.run_id}"  # a new folder per trial: no stale file is ever reused
+        try:
+            dest.mkdir(parents=True, exist_ok=True)
+            needed = sum(_size(Path(i.path)) for i in ctx.plan.items)
+            free = shutil.disk_usage(dest).free
+            folder.mkdir()
+        except OSError as exc:
+            raise ApplyRefused(f"Dossier des copies inutilisable : {exc}") from exc
+        if needed * 1.1 + 200_000_000 > free:
+            folder.rmdir()
+            raise ApplyRefused(f"Espace disque insuffisant dans {dest} pour les copies.")
+        run.backup_dir = str(folder)
         total = len(ctx.plan.items)
         for index, item in enumerate(ctx.plan.items, 1):
             try:
-                outcome = _trial_one(item, dest, s.tag_options)
+                outcome = _trial_one(item, folder, s.tag_options)
             except Exception as exc:
                 outcome = TrackOutcome(
                     item.track_id, item.path, "error", f"erreur inattendue : {exc}", _change_rows(item)
@@ -601,53 +641,76 @@ def run_trial(ctx: ApplyContext, dest: Path) -> RunResult:
         return run
 
 
-def _trial_one(item: TrackPlan, dest: Path, opts: TagOptions) -> TrackOutcome:
-    path = Path(item.path)
-    outcome = TrackOutcome(item.track_id, item.path, "error", changes=_change_rows(item))
-    if not path.exists():
-        outcome.message = "fichier introuvable (lancer `djtag import`)"
-        return outcome
-    source = real_target(path)
-    managed = read_managed(source, item.format, opts)
-    item, note = _without_blocked_rating(item, managed.rating_block)
-    outcome.changes = _change_rows(item)
-    if not item.changes:
-        outcome.status, outcome.message = "skipped", note
-        return outcome
-    current = managed.baseline()
-    expected = _expected(item)
-    foreign = [
-        TAG_LABELS[r]
-        for r in ROLES
-        if not tags_equal(getattr(current, r), getattr(item.baseline, r))
-        and not tags_equal(getattr(current, r), getattr(expected, r))
-    ]
-    if foreign:
-        outcome.status, outcome.message = "conflict", "modifié depuis l'import : " + ", ".join(foreign)
-        return outcome
-    todo = {c.tag: c.new for c in item.changes if not tags_equal(getattr(current, c.tag), c.new)}
-    if not todo:
-        outcome.status, outcome.message = "already", "déjà à jour"
-        return outcome
-    copy = _free_name(dest / path.name)
-    clone_or_copy(source, copy)
+def _size(path: Path) -> int:
     try:
-        write_managed(copy, item.format, todo, opts)
-        verify_copy(source, copy, item.format, opts, expected)
-    except (TagWriteError, VerifyError) as exc:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+SERATO_FOLDERS = ("_serato_", "_serato_backup")
+
+
+def _check_trial_folder(dest: Path, music_folders: list[Path]) -> None:
+    """Refuse a copies folder inside or around a music folder, whatever its spelling, or Serato's own."""
+    if any(part.casefold() in SERATO_FOLDERS for part in dest.parts):
+        raise ApplyRefused("Le dossier des copies ne peut pas être dans un dossier de Serato.")
+    for folder in music_folders:
+        root = folder.expanduser().resolve()
+        if _same_or_inside(dest, root) or _same_or_inside(root, dest):
+            raise ApplyRefused(f"Le dossier des copies doit être hors des dossiers de musique ({root}).")
+
+
+def _same_or_inside(path: Path, root: Path) -> bool:
+    """`path` is `root` or below it, by file identity when possible (case and Unicode spellings)."""
+    try:
+        root_stat = root.stat()
+    except OSError:
+        root_stat = None
+    for candidate in (path, *path.parents):
+        if root_stat is not None:
+            try:
+                if os.path.samestat(candidate.stat(), root_stat):
+                    return True
+            except OSError:
+                pass
+        if _spelling(candidate) == _spelling(root):
+            return True
+    return False
+
+
+def _spelling(path: Path) -> str:
+    return unicodedata.normalize("NFC", str(path)).casefold()
+
+
+def _trial_one(item: TrackPlan, folder: Path, opts: TagOptions) -> TrackOutcome:
+    outcome = TrackOutcome(item.track_id, item.path, "error", changes=_change_rows(item))
+    ready = _prepare(item, opts, outcome)
+    if ready is None:
+        return outcome
+    copy = _free_name(folder / ready.path.name)
+    try:
+        clone_or_copy(ready.target, copy)
+        write_managed(copy, ready.item.format, ready.todo, opts)
+        verify_copy(ready.target, copy, ready.item.format, opts, ready.expected)
+    except (TagWriteError, VerifyError, OSError) as exc:
         _discard(copy)
         outcome.message = str(exc)
         return outcome
-    outcome.status, outcome.message = "written", str(copy) + (f" — {note}" if note else "")
+    except BaseException:
+        _discard(copy)  # never leave a half-written copy to be checked in Serato
+        raise
+    outcome.status = "written"
+    outcome.message = str(copy) + (f" — {ready.note}" if ready.note else "")
     return outcome
 
 
 def _free_name(path: Path) -> Path:
-    if not path.exists():
+    if not os.path.lexists(path):
         return path
     for n in range(2, 10_000):
         candidate = path.with_name(f"{path.stem} ({n}){path.suffix}")
-        if not candidate.exists():
+        if not os.path.lexists(candidate):
             return candidate
     raise OSError(errno.EEXIST, "trop de copies portant ce nom", str(path))
 

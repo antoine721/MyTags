@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
   "mutagen==1.47.0",
   "typer==0.15.1",
+  "click==8.1.8",  # typer 0.15 breaks with click 8.2+ (`--help` crashes)
   "rich==13.9.4",
   "httpx==0.28.1",
   "keyring==25.6.0",
