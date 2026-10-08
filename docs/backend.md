@@ -14,6 +14,7 @@ L'iPhone et le Mac ne parlent qu'au Worker, en HTTPS, avec un jeton (décision 0
 
 1. **Compte Cloudflare** : créez un compte gratuit sur <https://dash.cloudflare.com/sign-up>.
 2. **Activer R2** : dans le tableau de bord, menu *R2 Object Storage*, activez R2. Cloudflare demande un moyen de paiement, même pour l'offre gratuite ; rien n'est facturé tant que vous restez sous 10 Go.
+   Ouvrez aussi une fois *Workers & Pages* et choisissez un sous-domaine `workers.dev` s'il est demandé : sans lui, le déploiement s'arrête.
 3. **Node.js 22 ou plus** sur le Mac : `brew install node`.
 4. **wrangler** (l'outil en ligne de commande de Cloudflare) est installé avec le projet : `cd backend && npm ci`, puis `npx wrangler …`. Vous pouvez aussi l'installer pour tout le Mac avec `npm i -g wrangler`.
 5. **Connexion** : `npx wrangler login` (le navigateur s'ouvre pour autoriser wrangler).
