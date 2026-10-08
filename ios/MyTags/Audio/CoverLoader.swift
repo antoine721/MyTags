@@ -42,6 +42,10 @@ actor CoverLoader {
         guard let coverKey else { return nil }
         let name = "\(coverKey)_\(size.rawValue)"
         if let cached = memory.image(forKey: name) { return cached }
+        if let artwork = DemoArtwork.image(key: coverKey, pixels: size.rawValue) {
+            memory.set(artwork, forKey: name)
+            return artwork
+        }
         let file = folder.appending(path: name.replacingOccurrences(of: "/", with: "_") + ".jpg")
         if let data = try? Data(contentsOf: file), let image = UIImage(data: data) {
             let decoded = await image.byPreparingForDisplay() ?? image
@@ -126,7 +130,9 @@ struct CoverImage: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemFill))
+                .fill(LinearGradient(
+                    colors: [Color(uiColor: .systemGray5), Color(uiColor: .systemGray4)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing))
             if let image {
                 Image(uiImage: image)
                     .resizable()

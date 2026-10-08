@@ -97,6 +97,9 @@ struct TagScreen: View {
                 .accessibilityHidden(session.undo != nil)
                 .overlay { undoBanner }
                 .padding(.bottom, 8)
+            // Spare height (screens taller than the 6.1" budget) goes here: the tag panel stays at
+            // the bottom, under the thumb (U-02), always at the same place (U-03).
+            Spacer(minLength: 0)
             Divider()
             Group {
                 if case let .quickPass(fieldID) = session.mode, let field = session.config.field(id: fieldID) {
@@ -106,7 +109,7 @@ struct TagScreen: View {
                 }
             }
             .padding(.top, 10)
-            Spacer(minLength: 0)
+            .padding(.bottom, 12)
         }
         .animation(Motion.stateFade, value: session.queue.currentIndex)
     }

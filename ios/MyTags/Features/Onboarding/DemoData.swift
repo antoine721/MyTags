@@ -43,7 +43,8 @@ enum DemoData {
                     id: UUID().uuidString.lowercased(), filePath: "/Demo/\(artist) - \(title).mp3", fileFormat: "mp3",
                     title: title, artist: artist, bpm: bpm, musicalKey: keys[index % keys.count], durationMs: duration,
                     addedAt: now, startMs: 12_000, waveform: waveform(seed: index, using: &generator),
-                    audioKey: nil, baseline: Baseline(genre: genre.isEmpty ? nil : genre, comment: comment.isEmpty ? nil : comment),
+                    audioKey: nil, coverKey: DemoArtwork.key(index),
+                    baseline: Baseline(genre: genre.isEmpty ? nil : genre, comment: comment.isEmpty ? nil : comment),
                     applyStatus: .aucun, updatedAt: now)
                 try db.execute(sql: "INSERT OR REPLACE INTO tracks (id, json) VALUES (?, ?)",
                                arguments: [track.id, try encoder.encode(track)])
