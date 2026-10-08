@@ -1,0 +1,379 @@
+import Foundation
+import MyTagsKit
+import Observation
+
+/// State and actions of the Tag screen (spec 9.2 – 9.3): a frozen queue, one-tap values,
+/// validation by rating, 3-second undo, quick pass.
+@MainActor
+@Observable
+final class TagSessionModel {
+    enum Mode: Equatable {
+        case full
+        case quickPass(fieldID: String)
+    }
+
+    struct Undo: Equatable {
+        let id = UUID()
+        let trackID: String
+        let index: Int
+        let restore: [RestoreEdit]
+        let label: String
+
+        static func == (lhs: Undo, rhs: Undo) -> Bool { lhs.id == rhs.id }
+    }
+
+    struct RestoreEdit: Sendable {
+        let fieldID: String
+        let value: FieldValue?
+        let source: ValueSource
+    }
+
+    @ObservationIgnored unowned let app: AppModel
+    private(set) var queue: TagQueue
+    private(set) var title: String
+    var skipComplete: Bool
+    private(set) var mode: Mode = .full
+    /// Fields blinking because they are required and empty.
+    private(set) var flashing: Set<String> = []
+    private(set) var flashGeneration = 0
+    private(set) var undo: Undo?
+    /// +1 when moving forward, -1 backward (drives the slide transition).
+    private(set) var direction = 1
+    /// The field whose "add a value" overlay is open.
+    var addingValueTo: Field?
+
+    @ObservationIgnored private var undoTimer: Task<Void, Never>?
+    @ObservationIgnored private var flashTimer: Task<Void, Never>?
+    @ObservationIgnored private var fullQueue: TagQueue?
+
+    init(app: AppModel, queue: TagQueue, title: String, skipComplete: Bool) {
+        self.app = app
+        self.queue = queue
+        self.title = title
+        self.skipComplete = skipComplete
+    }
+
+    var store: LibraryStore { app.store }
+    var config: TagConfig { store.config }
+
+    var currentTrack: Track? {
+        queue.currentTrackID.flatMap { store.tracks[$0] }
+    }
+
+    /// Effective values of the current track (re-evaluated when the store changes).
+    var resolved: ResolvedTrack? {
+        _ = store.dataVersion
+        return queue.currentTrackID.flatMap { store.resolve($0) }
+    }
+
+    var positionText: String {
+        guard let position = queue.displayPosition else { return "\(queue.count) / \(queue.count)" }
+        return "\(position.formatted()) / \(queue.count.formatted())"
+    }
+
+    // MARK: Lifecycle
+
+    func begin(autoplay: Bool) {
+        let player = app.player
+        player.onNext = { [weak self] in self?.next() }
+        player.onPrevious = { [weak self] in self?.previous() }
+        player.onEnded = { [weak self] in self?.next(autoplay: true) }
+        player.onUnavailable = { [weak self] id in self?.handleUnavailable(id) }
+        player.onPlayStarted = { [weak self] _ in self?.app.sessions.activity() }
+        if skipComplete, let id = queue.currentTrackID, store.snapshots[id]?.isIncomplete == false {
+            queue.next(where: isWanted)
+        }
+        show(autoplay: autoplay)
+    }
+
+    /// Called when the Tag screen closes: stores the session and shows the summary if relevant.
+    func end() {
+        let previous = app.sessions.history(limit: 1).first
+        if let record = app.sessions.end(), record.validatedCount >= 5 {
+            app.sessionSummary = SessionSummary(current: record, previous: previous)
+        }
+        app.database.setValue(Optional<SavedSession>.none, forKey: SavedSession.key)
+    }
+
+    private func show(autoplay: Bool) {
+        guard let track = currentTrack else {
+            app.player.pause()
+            persist()
+            return
+        }
+        app.player.load(track, autoplay: autoplay)
+        app.prefetcher.update(queue: queue)
+        if let nextID = queue.trackIDs[safe: queue.currentIndex + 1] {
+            app.player.prepare(store.tracks[nextID])
+        }
+        app.sessions.beginTrack(track.id)
+        persist()
+    }
+
+    private func persist() {
+        app.database.setValue(SavedSession(queue: queue, title: title, skipComplete: skipComplete), forKey: SavedSession.key)
+    }
+
+    // MARK: Navigation
+
+    private func isWanted(_ id: String) -> Bool {
+        if skipComplete, store.snapshots[id]?.isIncomplete == false { return false }
+        if case let .quickPass(fieldID) = mode, store.snapshots[id]?.confirmedFieldIDs.contains(fieldID) == true {
+            return false
+        }
+        if !app.sync.isOnline, app.settings.skipUnavailableOffline, !app.cache.offlineIDs.contains(id) { return false }
+        return true
+    }
+
+    func next(autoplay: Bool? = nil) {
+        guard !queue.isAtEnd else { return }
+        let play = autoplay ?? app.player.isPlaying
+        direction = 1
+        queue.next(where: isWanted)
+        show(autoplay: play)
+    }
+
+    /// Always the previous track of the queue, never the start of the current one.
+    func previous() {
+        guard queue.hasPrevious else { return }
+        let play = app.player.isPlaying
+        direction = -1
+        queue.previous()
+        show(autoplay: play)
+    }
+
+    func jump(to index: Int, autoplay: Bool) {
+        direction = index >= queue.currentIndex ? 1 : -1
+        queue.move(to: index)
+        show(autoplay: autoplay)
+    }
+
+    private func handleUnavailable(_ id: String) {
+        guard id == queue.currentTrackID, app.settings.skipUnavailableOffline, !app.sync.isOnline else { return }
+        next(autoplay: true)
+    }
+
+    /// Switches to another queue without closing the screen (header menu, end of queue).
+    func replaceQueue(with ids: [String], title: String, skipComplete: Bool) {
+        guard !ids.isEmpty else { return }
+        queue = TagQueue(trackIDs: ids)
+        self.title = title
+        self.skipComplete = skipComplete
+        mode = .full
+        fullQueue = nil
+        if skipComplete, let id = queue.currentTrackID, store.snapshots[id]?.isIncomplete == false {
+            queue.next(where: isWanted)
+        }
+        show(autoplay: app.player.isPlaying)
+    }
+
+    // MARK: Values
+
+    func tap(option: FieldOption, in field: Field) {
+        guard let track = currentTrack, let resolved else { return }
+        app.sessions.tap()
+        let current = resolved[field.id]
+        let edit: ValueEdit
+        if field.kind == .multi {
+            if current?.state == .suggested, current?.value.optionIDs.contains(option.id) == true {
+                edit = ValueEdit(trackID: track.id, fieldID: field.id, value: current!.value, source: current?.source ?? .user)
+            } else {
+                var ids = current?.state == .confirmed ? current!.value.optionIDs : []
+                if let index = ids.firstIndex(of: option.id) { ids.remove(at: index) } else { ids.append(option.id) }
+                edit = ValueEdit(
+                    trackID: track.id, fieldID: field.id,
+                    value: FieldValue(optionIDs: config.sortedOptionIDs(ids, forField: field.id)), source: .user)
+            }
+        } else if current?.state == .confirmed, current?.value.optionIDs == [option.id] {
+            edit = ValueEdit(trackID: track.id, fieldID: field.id, value: FieldValue(), source: .user)
+        } else if current?.state == .suggested, current?.value.optionIDs.contains(option.id) == true {
+            edit = ValueEdit(trackID: track.id, fieldID: field.id, value: current!.value, source: current?.source ?? .user)
+        } else {
+            edit = ValueEdit(trackID: track.id, fieldID: field.id, value: .option(option.id), source: .user)
+        }
+        if edit.source == .user { app.sessions.manualValue() }
+        commit([edit])
+        Haptics.shared.select()
+    }
+
+    func rate(_ stars: Int, field: Field) {
+        guard let track = currentTrack else { return }
+        app.sessions.tap()
+        commit([ValueEdit(trackID: track.id, fieldID: field.id, value: .stars(stars), source: .user)])
+        if field.isAdvanceTrigger {
+            validate()
+        } else {
+            Haptics.shared.select()
+        }
+    }
+
+    func clearRating(field: Field) {
+        guard let track = currentTrack else { return }
+        app.sessions.tap()
+        commit([ValueEdit(trackID: track.id, fieldID: field.id, value: FieldValue(), source: .user)])
+        Haptics.shared.select()
+    }
+
+    func setText(_ text: String, field: Field) {
+        guard let track = currentTrack else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        commit([ValueEdit(trackID: track.id, fieldID: field.id, value: FieldValue(text: trimmed.isEmpty ? nil : trimmed),
+                          source: .user)])
+    }
+
+    /// Writes edits, then the values of "apply" rules that this action made true.
+    private func commit(_ edits: [ValueEdit]) {
+        guard store.apply(edits) else {
+            Haptics.shared.error()
+            return
+        }
+        guard let track = currentTrack, let after = resolved else { return }
+        let ruleEdits = after.applyModeRuleValues
+            .filter { after[$0.key]?.hasRow == false }
+            .map { ValueEdit(trackID: track.id, fieldID: $0.key, value: $0.value, source: .rule) }
+        if !ruleEdits.isEmpty { store.apply(ruleEdits) }
+    }
+
+    // MARK: Validation
+
+    /// Confirms every suggestion and moves on, or flashes the missing required fields.
+    func validate() {
+        guard let track = currentTrack, let resolved else { return }
+        let missing = Completeness.missingRequiredFields(resolved, config: config)
+        guard missing.isEmpty else {
+            flash(Set(missing))
+            Haptics.shared.error()
+            return
+        }
+        let plan = ValidationPlan.make(resolved: resolved, config: config)
+        let restore = plan.values.map { planned -> RestoreEdit in
+            if let row = store.rows[track.id]?[planned.fieldID], !row.isDeleted {
+                return RestoreEdit(fieldID: planned.fieldID, value: row.value, source: row.source)
+            }
+            return RestoreEdit(fieldID: planned.fieldID, value: nil, source: .file)
+        }
+        let edits = plan.values.map { ValueEdit(trackID: track.id, fieldID: $0.fieldID, value: $0.value, source: $0.source) }
+        guard store.apply(edits) else {
+            Haptics.shared.error()
+            return
+        }
+        app.sessions.validated(accepted: plan.values.filter { $0.source.isSuggestionSource }.count, manual: 0)
+        Haptics.shared.success()
+        let index = queue.currentIndex
+        if app.settings.autoAdvance {
+            next(autoplay: true)
+        }
+        showUndo(Undo(trackID: track.id, index: index, restore: restore, label: "Validé"))
+    }
+
+    private func flash(_ fields: Set<String>) {
+        flashing = fields
+        flashGeneration += 1
+        flashTimer?.cancel()
+        flashTimer = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(320))
+            self?.flashing = []
+        }
+    }
+
+    // MARK: Undo
+
+    private func showUndo(_ value: Undo) {
+        undo = value
+        undoTimer?.cancel()
+        undoTimer = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            self?.undo = nil
+        }
+    }
+
+    func performUndo() {
+        guard let undo else { return }
+        undoTimer?.cancel()
+        self.undo = nil
+        let edits = undo.restore.map { ValueEdit(trackID: undo.trackID, fieldID: $0.fieldID, value: $0.value, source: $0.source) }
+        store.apply(edits)
+        Haptics.shared.undo()
+        if queue.currentTrackID != undo.trackID {
+            direction = -1
+            queue.move(to: undo.index)
+            show(autoplay: app.player.isPlaying)
+        }
+    }
+
+    // MARK: Quick pass (spec 9.3)
+
+    func startQuickPass(fieldID: String) {
+        fullQueue = fullQueue ?? queue
+        let remaining = Array(queue.trackIDs[min(queue.currentIndex, queue.count)...])
+        let ids = remaining.filter { store.snapshots[$0]?.confirmedFieldIDs.contains(fieldID) != true }
+        mode = .quickPass(fieldID: fieldID)
+        queue = TagQueue(trackIDs: ids)
+        show(autoplay: app.player.isPlaying)
+    }
+
+    func stopQuickPass() {
+        guard case .quickPass = mode else { return }
+        mode = .full
+        if let fullQueue, let id = queue.currentTrackID ?? fullQueue.currentTrackID {
+            var restored = fullQueue
+            if let index = restored.index(of: id) { restored.move(to: index) }
+            queue = restored
+        }
+        fullQueue = nil
+        show(autoplay: app.player.isPlaying)
+    }
+
+    /// One tap: confirms the value and moves on immediately, with the undo banner.
+    func quickPick(option: FieldOption, field: Field) {
+        guard let track = currentTrack else { return }
+        app.sessions.tap()
+        let previous = store.rows[track.id]?[field.id]
+        let restore = [RestoreEdit(
+            fieldID: field.id, value: previous?.isDeleted == false ? previous?.value : nil,
+            source: previous?.isDeleted == false ? previous!.source : .file)]
+        guard store.apply([ValueEdit(trackID: track.id, fieldID: field.id, value: .option(option.id), source: .user)]) else {
+            Haptics.shared.error()
+            return
+        }
+        app.sessions.validated(accepted: 0, manual: 1)
+        Haptics.shared.success()
+        let index = queue.currentIndex
+        next(autoplay: true)
+        showUndo(Undo(trackID: track.id, index: index, restore: restore, label: option.displayLabel))
+    }
+
+    // MARK: New values (B-16)
+
+    /// Creates a value for `field` and selects it on the current track.
+    func addOption(_ text: String, to field: Field) async {
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !value.isEmpty else { return }
+        if let existing = config.option(fieldID: field.id, value: value) {
+            tap(option: existing, in: field)
+            return
+        }
+        let position = (config.options(forField: field.id).map(\.position).max() ?? -1) + 1
+        let option = FieldOption(
+            id: UUID().uuidString.lowercased(), fieldID: field.id, value: value, label: value, position: position,
+            updatedAt: Timestamp.string(from: Date()))
+        await store.saveConfig(DirtyConfig(fieldOptions: [option]))
+        if let saved = store.config.option(id: option.id) {
+            tap(option: saved, in: field)
+        }
+    }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
+}
+
+/// End-of-session recap (spec 9.10).
+struct SessionSummary: Identifiable, Sendable {
+    let current: SessionRecord
+    let previous: SessionRecord?
+    var id: String { current.id }
+}
