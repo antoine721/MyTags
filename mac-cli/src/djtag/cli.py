@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any, NoReturn
@@ -553,13 +554,24 @@ def pair(name: Annotated[str, typer.Option(help="Nom de l'appareil.")] = "iPhone
     payload = "mytags://pair?" + urllib.parse.urlencode({"api": s.api_url, "token": device["token"]})
     qr = segno.make(payload, error="m")
     _print_qr(qr)
-    image = settings_mod.work_dir() / "pair-qr.png"
-    image.parent.mkdir(parents=True, exist_ok=True)
-    qr.save(str(image), scale=12, border=4)
     if platform.system() == "Darwin":
-        subprocess.run(["open", str(image)], check=False)  # an image on screen scans best
+        _show_qr_image(qr)  # an image on screen scans best
     console.print("Scanner ce code dans l'app MyTags (ou coller le texte ci-dessous).")
     console.print(payload, soft_wrap=True)
+
+
+def _show_qr_image(qr: Any) -> None:
+    """Open the QR code in Preview, then delete the file: it holds the device token."""
+    image = settings_mod.work_dir() / "pair-qr.png"
+    image.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(image, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        qr.save(fh, kind="png", scale=12, border=4)
+    try:
+        subprocess.run(["open", str(image)], check=False)
+        time.sleep(3)  # Preview has loaded it by then; the window stays open
+    finally:
+        image.unlink(missing_ok=True)
 
 
 def _print_qr(qr: Any) -> None:
