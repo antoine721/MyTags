@@ -148,9 +148,10 @@ Une image du QR code s'ouvre sur l'écran du Mac. Dans l'app, sur l'écran de co
 
 ## 9. Taguer vite
 
-- La vue **À compléter** ne fait défiler que les morceaux à finir.
+- L'app s'ouvre sur la vue **À compléter** (seuls les morceaux à finir) ; le bouton **Taguer**, en bas à droite, lance l'écran Taguer en un tap.
 - Un tap sur une pastille choisit la valeur ; un second tap l'enlève.
-- **La note valide le morceau et passe au suivant**, qui démarre tout seul. Si un champ obligatoire manque, il clignote.
+- **La note valide le morceau et passe au suivant**, qui démarre tout seul. Si un champ obligatoire manque, il clignote : dès que vous le remplissez, le morceau se valide sans retoucher la note.
+- En fin de morceau, la lecture reprend au point de départ : rien ne change de morceau sans vous.
 - « Annuler » apparaît 3 secondes après chaque validation.
 - Sur la pochette : tap = lecture/pause ; double tap à gauche ou à droite = −15 s / +15 s ; glisser = morceau suivant ou précédent.
 - Une valeur manque (par exemple un Type « ORIGINAL » pour les morceaux qui ne sont ni EXTEND, ni REMIX, ni EDIT) : **appui long sur le nom du champ** › Ajouter. Les champs obligatoires et leurs valeurs se règlent dans Réglages › Champs et valeurs.
