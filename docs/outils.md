@@ -85,6 +85,8 @@ uv run djtag import                # puis tout : reprend où il s'est arrêté
 
 Détails, coûts et restauration : `docs/backend.md`.
 
+Sauvegarde hebdomadaire de la base sur le Mac (dimanche 20 h) : `mac-cli/scripts/install-weekly-backup.sh`.
+
 ## 6. L'app sur l'iPhone
 
 Voir `docs/ios.md` : ouvrir `ios/MyTags.xcodeproj`, choisir son équipe personnelle, brancher l'iPhone, lancer. Puis, sur le Mac :

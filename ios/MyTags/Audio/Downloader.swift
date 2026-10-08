@@ -42,12 +42,12 @@ final class Downloader {
         bg.httpMaximumConnectionsPerHost = 3
         background = URLSession(configuration: bg, delegate: delegate, delegateQueue: nil)
         delegate.owner = self
+        // Trip downloads keep running while the app is closed: count them again after a relaunch.
         background.getAllTasks { [weak self] existing in
             let ids = existing.compactMap(\.taskDescription)
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                for (task, id) in zip(existing.compactMap { $0 as? URLSessionDownloadTask }, ids) {
-                    self.tasks[id] = task
+                for id in ids where self.purposes[id] == nil {
                     self.purposes[id] = .trip
                 }
                 self.tripRemaining = ids.count
@@ -56,7 +56,7 @@ final class Downloader {
         }
     }
 
-    func isDownloading(_ trackID: String) -> Bool { tasks[trackID] != nil }
+    func isDownloading(_ trackID: String) -> Bool { tasks[trackID] != nil || purposes[trackID] == .trip }
 
     /// Starts (or re-prioritises) a prefetch download. `priority` is 0...1, higher first.
     func prefetch(_ trackID: String, audioKey: String, priority: Float) {
@@ -65,6 +65,7 @@ final class Downloader {
             task.priority = priority
             return
         }
+        if purposes[trackID] == .trip { return }  // already coming through the background session
         let task = foreground.downloadTask(with: api.blobRequest(key: audioKey))
         task.taskDescription = trackID
         task.priority = priority
@@ -90,7 +91,7 @@ final class Downloader {
         if let url = cache.localURL(for: trackID) { return url }
         guard let audioKey, api != nil else { return nil }
         prefetch(trackID, audioKey: audioKey, priority: URLSessionTask.highPriority)
-        guard tasks[trackID] != nil else { return cache.localURL(for: trackID) }
+        guard tasks[trackID] != nil || purposes[trackID] == .trip else { return cache.localURL(for: trackID) }
         return await withCheckedContinuation { continuation in
             waiters[trackID, default: []].append(continuation)
         }
@@ -119,8 +120,11 @@ final class Downloader {
         for (id, task) in tasks where purposes[id] == .trip {
             task.cancel()
             tasks[id] = nil
+        }
+        for (id, purpose) in purposes where purpose == .trip {
             purposes[id] = nil
         }
+        background.getAllTasks { all in all.forEach { $0.cancel() } }
         tripRemaining = 0
         tripTotal = 0
     }

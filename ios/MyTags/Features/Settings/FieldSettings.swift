@@ -118,7 +118,7 @@ struct FieldEditorView: View {
                     }
                 }
                 if field.kind == .single || field.kind == .multi {
-                    Section("Valeurs") {
+                    Section {
                         ForEach(config.options(forField: field.id)) { option in
                             NavigationLink {
                                 OptionEditorView(optionID: option.id)
@@ -149,6 +149,14 @@ struct FieldEditorView: View {
                             Task { await editor.save(options: updated) }
                         }
                         Button("Ajouter une valeur") { addingValue = true }
+                    } header: {
+                        Text("Valeurs")
+                    } footer: {
+                        switch LayoutBudget.fit(config: config) {
+                        case .normal: EmptyView()
+                        case .compact: Text("L'écran Taguer passe en mode compact avec cette configuration.")
+                        case .scrolling: Text("Trop de valeurs visibles : l'écran Taguer devra défiler. Raccourcissez des libellés ou masquez un champ.")
+                        }
                     }
                 }
                 Section {
