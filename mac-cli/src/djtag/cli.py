@@ -346,9 +346,17 @@ def apply(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Tout faire sauf écrire.")] = False,
     limit: Annotated[int | None, typer.Option()] = None,
     track: Annotated[list[str] | None, typer.Option(help="Identifiant de morceau (répétable).")] = None,
+    copy_to: Annotated[
+        Path | None,
+        typer.Option(
+            "--copy-to",
+            help="Essai (règle R4) : écrire sur des copies dans ce dossier, hors de la bibliothèque. "
+            "Rien ne change dans la bibliothèque ni dans le cloud.",
+        ),
+    ] = None,
 ) -> None:
     """Écrit les tags dans les fichiers, avec sauvegarde et vérification."""
-    from .apply import SERATO_RESCAN, ApplyContext, ApplyRefused, run_apply
+    from .apply import SERATO_RESCAN, ApplyContext, ApplyRefused, run_apply, run_trial
     from .cloud import CloudState
     from .plan import build_plan
     from .state import ImportState
@@ -372,6 +380,12 @@ def apply(
                 else:
                     console.print("Rien à appliquer.")
                 raise typer.Exit(EXIT_CONFLICTS if plan.conflicts else EXIT_OK)
+            if copy_to is not None:
+                progress, update = _progress()
+                ctx = ApplyContext(s, api, cloud, state, plan, False, lambda d, t: update("Copies", d, t))
+                with progress:
+                    trial = run_trial(ctx, copy_to)
+                _trial_summary(trial, as_json)
             if not yes and not dry_run:
                 console.print(
                     f"{len(plan.items)} morceaux vont être écrits : "
@@ -414,6 +428,23 @@ def apply(
         console.print(f"Rapport : {run.report_md}")
         if run.count("written"):
             console.print(SERATO_RESCAN)
+    raise typer.Exit(code)
+
+
+def _trial_summary(run: Any, as_json: bool) -> NoReturn:
+    from .apply import TRIAL_CHECK
+
+    code = EXIT_ERROR if run.count("error") else EXIT_CONFLICTS if run.count("conflict") else EXIT_OK
+    if as_json:
+        emit_json({"ok": code == EXIT_OK, **run.to_json(), "serato_check": TRIAL_CHECK})
+    else:
+        console.print(
+            f"Essai : {run.count('written')} copies écrites et vérifiées dans {run.backup_dir}, "
+            f"{run.count('conflict')} conflits, {run.count('error')} erreurs."
+        )
+        console.print(f"Rapport : {run.report_md}")
+        if run.count("written"):
+            console.print(TRIAL_CHECK)
     raise typer.Exit(code)
 
 

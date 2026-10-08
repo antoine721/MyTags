@@ -46,6 +46,11 @@ SERATO_OPEN = (
 SERATO_OPENED_DURING_RUN = (
     "Serato DJ a été ouvert pendant l'application : arrêt avant le fichier suivant (règle R6)."
 )
+TRIAL_CHECK = (
+    "Dans Serato DJ, glisser le dossier des copies dans la bibliothèque, puis comparer chaque copie à son "
+    "original : cue points, boucles, beatgrid, couleurs et aperçu identiques ; nouveaux GENRE, GROUPING, "
+    "COMMENT et note visibles. Les originaux et le cloud n'ont pas changé."
+)
 SERATO_RESCAN = (
     "Dans Serato DJ Pro 4 : sélectionner les morceaux modifiés, clic droit › « Re-Scan File Info ». "
     "Voir docs/serato.md."
@@ -513,7 +518,12 @@ def _write_reports(s: Settings, run: RunResult) -> None:
     md = s.reports_dir / f"{run.mode}-{run.run_id}.md"
     js = s.reports_dir / f"{run.mode}-{run.run_id}.json"
     run.report_md, run.report_json = str(md), str(js)
-    title = {"apply": "Application", "dry_run": "Simulation", "rollback": "Annulation"}[run.mode]
+    title = {
+        "apply": "Application",
+        "dry_run": "Simulation",
+        "rollback": "Annulation",
+        "trial": "Essai sur copies",
+    }[run.mode]
     lines = [
         f"# {title} {run.run_id}",
         "",
@@ -524,7 +534,8 @@ def _write_reports(s: Settings, run: RunResult) -> None:
     if run.stopped:
         lines.append(f"- **Arrêt** : {run.stopped}")
     if run.backup_dir:
-        lines.append(f"- Sauvegarde : `{run.backup_dir}`")
+        where = "Copies" if run.mode == "trial" else "Sauvegarde"
+        lines.append(f"- {where} : `{run.backup_dir}`")
     for status, label in (
         ("written", "Écrits"),
         ("already", "Déjà à jour"),
@@ -548,8 +559,97 @@ def _write_reports(s: Settings, run: RunResult) -> None:
             )
     if run.mode in ("apply", "rollback") and run.count("written"):
         lines += ["", "## Relecture dans Serato", "", SERATO_RESCAN]
+    if run.mode == "trial" and run.count("written"):
+        lines += ["", "## Contrôle dans Serato", "", TRIAL_CHECK]
     md.write_text("\n".join(lines) + "\n", encoding="utf-8")
     js.write_text(json.dumps(run.to_json(), ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+# -- trial on copies (rule R4) --------------------------------------------------------------------
+
+
+def run_trial(ctx: ApplyContext, dest: Path) -> RunResult:
+    """Write the pending tags into copies placed in `dest`, outside the library (rule R4).
+
+    The library, the cloud and the import state are left untouched: the copies are meant to be
+    opened in Serato and compared with the originals before the first real application.
+    """
+    s = ctx.settings
+    dest = dest.expanduser().resolve()
+    for folder in s.music_folders:
+        root = folder.expanduser().resolve()
+        if dest == root or root in dest.parents or dest in root.parents:
+            raise ApplyRefused(f"Le dossier des copies doit être hors des dossiers de musique ({root}).")
+    if serato.is_running():
+        raise ApplyRefused(SERATO_OPEN)
+    with exclusive_run():
+        dest.mkdir(parents=True, exist_ok=True)
+        run = RunResult(new_run_id(), "trial", now_iso(), backup_dir=str(dest))
+        total = len(ctx.plan.items)
+        for index, item in enumerate(ctx.plan.items, 1):
+            try:
+                outcome = _trial_one(item, dest, s.tag_options)
+            except Exception as exc:
+                outcome = TrackOutcome(
+                    item.track_id, item.path, "error", f"erreur inattendue : {exc}", _change_rows(item)
+                )
+            run.outcomes.append(outcome)
+            if ctx.progress:
+                ctx.progress(index, total)
+        run.finished_at = now_iso()
+        _write_reports(s, run)
+        return run
+
+
+def _trial_one(item: TrackPlan, dest: Path, opts: TagOptions) -> TrackOutcome:
+    path = Path(item.path)
+    outcome = TrackOutcome(item.track_id, item.path, "error", changes=_change_rows(item))
+    if not path.exists():
+        outcome.message = "fichier introuvable (lancer `djtag import`)"
+        return outcome
+    source = real_target(path)
+    managed = read_managed(source, item.format, opts)
+    item, note = _without_blocked_rating(item, managed.rating_block)
+    outcome.changes = _change_rows(item)
+    if not item.changes:
+        outcome.status, outcome.message = "skipped", note
+        return outcome
+    current = managed.baseline()
+    expected = _expected(item)
+    foreign = [
+        TAG_LABELS[r]
+        for r in ROLES
+        if not tags_equal(getattr(current, r), getattr(item.baseline, r))
+        and not tags_equal(getattr(current, r), getattr(expected, r))
+    ]
+    if foreign:
+        outcome.status, outcome.message = "conflict", "modifié depuis l'import : " + ", ".join(foreign)
+        return outcome
+    todo = {c.tag: c.new for c in item.changes if not tags_equal(getattr(current, c.tag), c.new)}
+    if not todo:
+        outcome.status, outcome.message = "already", "déjà à jour"
+        return outcome
+    copy = _free_name(dest / path.name)
+    clone_or_copy(source, copy)
+    try:
+        write_managed(copy, item.format, todo, opts)
+        verify_copy(source, copy, item.format, opts, expected)
+    except (TagWriteError, VerifyError) as exc:
+        _discard(copy)
+        outcome.message = str(exc)
+        return outcome
+    outcome.status, outcome.message = "written", str(copy) + (f" — {note}" if note else "")
+    return outcome
+
+
+def _free_name(path: Path) -> Path:
+    if not path.exists():
+        return path
+    for n in range(2, 10_000):
+        candidate = path.with_name(f"{path.stem} ({n}){path.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise OSError(errno.EEXIST, "trop de copies portant ce nom", str(path))
 
 
 # -- rollback --------------------------------------------------------------------------------------

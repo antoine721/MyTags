@@ -43,6 +43,7 @@ Every command accepts `--json`. Exit codes: 0 ok, 1 error, 2 conflicts, 3 safety
 | `djtag audit [--summary docs/audit.md]` — read-only library report | No |
 | `djtag import [--limit N]` — new/changed files to the cloud | No |
 | `djtag status` / `djtag diff [--markdown f.md]` — what would be written | No |
+| `djtag apply --copy-to DIR [--limit N]` — trial on copies outside the library (rule R4) | No (copies only) |
 | `djtag apply [--dry-run] [--yes] [--limit N] [--track ID]` — write, with backup + verification | **Yes** |
 | `djtag rollback <run-id> [--track ID]` — restore the files of an application | **Yes** |
 | `djtag resolve <ids…> --keep-file / --keep-app [--all]` — settle conflicts in the database | No |

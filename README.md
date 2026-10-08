@@ -12,12 +12,14 @@ fichiers lus par Serato DJ — uniquement sur commande, depuis le Mac, avec sauv
 
 ## En bref
 
-1. **Mettre en place** : `docs/outils.md` (comptes, outils, backend, iPhone).
+1. **Mettre en place** : `docs/premiere-installation.md`, pas à pas (détails dans `docs/outils.md`).
 2. **Importer** : `uv run djtag audit`, puis `uv run djtag import` (depuis `mac-cli/`).
 3. **Taguer** : dans l'app, la vue « À compléter », une note valide le morceau et passe au suivant.
-4. **Appliquer** : dans Claude Code, « applique mes tags du train » — ou `uv run djtag diff`, puis
+4. **Essayer sur des copies** (règle R4) : `uv run djtag apply --copy-to ~/Desktop/MyTags-essai --limit 20`,
+   puis contrôle dans Serato.
+5. **Appliquer** : dans Claude Code, « applique mes tags du train » — ou `uv run djtag diff`, puis
    `uv run djtag apply`.
-5. **Annuler** : `uv run djtag rollback <id-application>`.
+6. **Annuler** : `uv run djtag rollback <id-application>`.
 
 ## Documentation
 

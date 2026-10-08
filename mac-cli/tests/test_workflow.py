@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from mutagen.id3 import ID3, TCON
 
-from djtag.apply import ApplyContext, ApplyRefused, RollbackContext, run_apply, run_rollback
+from djtag.apply import ApplyContext, ApplyRefused, RollbackContext, run_apply, run_rollback, run_trial
 from djtag.cloud import CloudState
 from djtag.importer import ImportContext, ImportRefused, run_import
 from djtag.model.config import load_default_config_json
@@ -175,6 +175,54 @@ def test_apply_every_format_keeps_serato_data(env, fmt):
     assert preserved_digest(path, fmt, env["settings"].tag_options) == before
     tags = read_managed(path, fmt, env["settings"].tag_options)
     assert (tags.genre, tags.comment) == ("BOUYON", "FR REMIX SEXY")
+
+
+def test_trial_writes_verified_copies_and_changes_nothing_else(env, tmp_path):
+    do_import(env)
+    cloud = CloudState.load(env["api"])
+    changes = []
+    for i, fmt in enumerate(FORMATS):
+        track, _ = track_by_name(env, f"track{i}.{fmt}")
+        changes += [
+            phone_change(cloud, track["id"], "genre", "BOUYON"),
+            phone_change(cloud, track["id"], "type", "REMIX"),
+        ]
+    env["api"].push(changes)
+    cloud = CloudState.load(env["api"])
+    plan = build_plan(cloud, env["settings"])
+    assert len(plan.items) == len(FORMATS)
+    library = {p: p.read_bytes() for p in env["music"].rglob("*") if p.is_file()}
+    dest = tmp_path / "essai"
+    run = run_trial(ApplyContext(env["settings"], env["api"], cloud, env["state"], plan), dest)
+    assert run.count("written") == len(FORMATS), run.outcomes
+    assert {p: p.read_bytes() for p in env["music"].rglob("*") if p.is_file()} == library
+    for i, fmt in enumerate(FORMATS):
+        copy = dest / f"track{i}.{fmt}"
+        original = env["music"] / "Shatta" / copy.name
+        opts = env["settings"].tag_options
+        assert preserved_digest(copy, fmt, opts) == preserved_digest(original, fmt, opts)
+        tags = read_managed(copy, fmt, opts)
+        assert (tags.genre, tags.comment) == ("BOUYON", "FR REMIX SEXY")
+    after = CloudState.load(env["api"])
+    assert {t["id"]: t["apply_status"] for t in after.tracks.values()} == {
+        t["id"]: t["apply_status"] for t in cloud.tracks.values()
+    }
+    assert len(build_plan(after, env["settings"]).items) == len(FORMATS)  # still to apply for real
+    again = run_trial(ApplyContext(env["settings"], env["api"], after, env["state"], plan), dest)
+    assert (dest / "track0 (2).mp3").exists() and again.count("written") == len(FORMATS)
+
+
+def test_trial_refuses_a_folder_inside_the_library(env):
+    do_import(env)
+    track, cloud = track_by_name(env, "track0.mp3")
+    env["api"].push([phone_change(cloud, track["id"], "genre", "POP")])
+    cloud = CloudState.load(env["api"])
+    plan = build_plan(cloud, env["settings"])
+    with pytest.raises(ApplyRefused):
+        run_trial(
+            ApplyContext(env["settings"], env["api"], cloud, env["state"], plan), env["music"] / "essai"
+        )
+    assert not (env["music"] / "essai").exists()
 
 
 def test_refuses_when_serato_is_open(env, monkeypatch):
