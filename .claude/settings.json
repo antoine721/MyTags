@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(uv run djtag apply:*)",
+      "Bash(djtag apply:*)",
+      "Bash(uv run djtag rollback:*)",
+      "Bash(djtag rollback:*)"
+    ],
+    "deny": [
+      "Edit(**/_Serato_/**)",
+      "Write(**/_Serato_/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_music.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
