@@ -29,7 +29,11 @@ final class SyncEngine {
     /// Bumped by `configure`: a sync started with an older token must not act for the new one.
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private let monitor = NWPathMonitor()
+    /// The running sync: one at a time.
+    @ObservationIgnored private var runTask: Task<Void, Never>?
+    /// Asked for while a run was going: the run goes once more (with a pull if one asked for it).
     @ObservationIgnored private var rerunRequested = false
+    @ObservationIgnored private var rerunPull = false
     @ObservationIgnored private var pushTask: Task<Void, Never>?
     @ObservationIgnored private var timer: Task<Void, Never>?
     /// Called when the server refuses the device token (revoked).
@@ -107,28 +111,42 @@ final class SyncEngine {
 
     func syncNow(pull: Bool = true) {
         guard api != nil else { return }
-        if phase == .syncing {
-            rerunRequested = true
-            return
-        }
-        Task { await run(pull: pull) }
+        startRun(pull: pull)
     }
 
-    /// Awaitable variant (pull to refresh, background task).
+    /// Awaitable variant (pull to refresh, background task): waits for a run already going, then
+    /// runs once more, so that edits made during that run are sent before this returns.
     func sync(pull: Bool = true) async {
         guard api != nil else { return }
-        if phase == .syncing {
-            rerunRequested = true
-            return
-        }
-        await run(pull: pull)
+        if let runTask { await runTask.value }
+        guard api != nil else { return }
+        await startRun(pull: pull).value
     }
 
-    private func run(pull: Bool) async {
+    /// Starts a run, or asks the running one to go once more. Set synchronously: two calls in a
+    /// row never start two runs.
+    @discardableResult
+    private func startRun(pull: Bool) -> Task<Void, Never> {
+        if let runTask {
+            rerunRequested = true
+            rerunPull = rerunPull || pull
+            return runTask
+        }
         phase = .syncing
-        defer { phase = .idle }
-        repeat {
+        let task = Task { await run(pull: pull) }
+        runTask = task
+        return task
+    }
+
+    private func run(pull firstPull: Bool) async {
+        defer {
+            phase = .idle
+            runTask = nil
+        }
+        var pull = firstPull
+        while true {
             rerunRequested = false
+            rerunPull = false
             guard let api else { return }
             let generation = self.generation
             do {
@@ -160,7 +178,9 @@ final class SyncEngine {
                 lastError = error.localizedDescription
                 return
             }
-        } while rerunRequested
+            guard rerunRequested else { return }
+            pull = rerunPull
+        }
     }
 
     // MARK: Push
@@ -185,8 +205,9 @@ final class SyncEngine {
         }
     }
 
-    /// Sends `items` in one request. When the server refuses it (400, 413), halves it until the
-    /// refused rows are isolated: those are flagged rejected (kept on the phone), the rest is sent.
+    /// Sends `items` in one request. When the server refuses a row (400 naming it) or the size
+    /// (413), halves it until the refused rows are isolated: those are flagged rejected (kept on the
+    /// phone), the rest is sent. A 400 about the request itself stops the push, like a server error.
     private func send(_ items: [PushItem], api: any SyncAPI) async throws {
         guard !items.isEmpty else { return }
         let database = store.database
@@ -194,7 +215,7 @@ final class SyncEngine {
         let config = PushItem.config(of: items)
         do {
             _ = try await api.push(PushBody(items: items))
-        } catch APIError.http(let code, let message) where code == 400 || code == 413 {
+        } catch APIError.http(let code, let message) where code == 413 || (code == 400 && Self.namesRow(message)) {
             setOnline(true, sync: false)
             guard items.count == 1 else {
                 let half = items.count / 2
@@ -214,6 +235,13 @@ final class SyncEngine {
             try database.markSent(ids: ids)
             try database.markConfigPushed(config)
         }.value
+    }
+
+    /// Whether a Worker 400 message is about one row (`changes[3].new_value …`, `fields[0].kind …`).
+    /// Any other 400 (body, cursors…) is not caused by the rows: none of them is refused for it.
+    nonisolated static func namesRow(_ message: String) -> Bool {
+        ["changes", "fields", "field_options", "rules", "saved_views", "settings"]
+            .contains { message.hasPrefix($0 + "[") }
     }
 
     private func refreshRejected() {

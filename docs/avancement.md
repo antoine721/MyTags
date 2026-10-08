@@ -85,6 +85,8 @@ Guide pas à pas : `docs/premiere-installation.md`.
 
 ## Points de vigilance
 
+- Suites de la relecture de la synchronisation, rares et sans perte de données : relire une table après une mise à jour de l'app quand des rangées étaient illisibles ; déconnexion pendant l'écriture d'une page reçue ; envoi en cours au moment d'une reconnexion ; modifications gardées à la déconnexion puis connectées à un autre serveur ; reprise de téléchargement après reconnexion avec l'ancien jeton.
+
 - Les tags des WAV dépendent du chunk ID3 (`id3 ` ou `ID3 `) : l'audit le confirmera avant toute écriture en masse.
 - La note M4A/FLAC reste dans l'app tant que l'audit n'a pas montré ce qu'écrit Serato.
 - Compte Apple gratuit : réinstaller l'app depuis Xcode chaque semaine (décision 0003).

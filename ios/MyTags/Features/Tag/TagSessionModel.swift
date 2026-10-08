@@ -89,19 +89,28 @@ final class TagSessionModel {
         player.onPrevious = { [weak self] in self?.previous() }
         player.onUnavailable = { [weak self] id in self?.handleUnavailable(id) }
         player.onPlayStarted = { [weak self] _ in self?.app.sessions.activity() }
-        if backgroundObserver == nil {
-            backgroundObserver = NotificationCenter.default.addObserver(
-                forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    if self?.saveTask != nil { self?.saveNow(waiting: true) }
-                }
-            }
-        }
+        observeBackground()
         if skipComplete, let id = queue.currentTrackID, store.snapshots[id]?.isIncomplete == false {
             queue.next(where: isWanted)
         }
         show(autoplay: autoplay)
+    }
+
+    /// Called when the Tag screen opens again from the mini player, after `end()`.
+    func reopen() {
+        observeBackground()
+    }
+
+    /// Flushes the delayed session save when the app leaves (it may not run again before a kill).
+    private func observeBackground() {
+        guard backgroundObserver == nil else { return }
+        backgroundObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                if self?.saveTask != nil { self?.saveNow(waiting: true) }
+            }
+        }
     }
 
     /// Called when the Tag screen closes: stores the session and shows the summary if relevant.
