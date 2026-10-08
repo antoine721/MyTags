@@ -210,11 +210,15 @@ extension AppDatabase {
 
     /// Whether some edits never reached the server (rejected ones included).
     func hasUnsentEdits() throws -> Bool {
+        try unsentEditCount() > 0
+    }
+
+    /// Journal entries and configuration rows that never reached the server (rejected ones included).
+    func unsentEditCount() throws -> Int {
         try pool.read { db in
-            try Bool.fetchOne(db, sql: """
-                SELECT EXISTS(SELECT 1 FROM journal WHERE status IN ('pending', 'rejected'))
-                    OR EXISTS(SELECT 1 FROM config_rows WHERE dirty <> 0)
-                """) ?? false
+            let changes = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM journal WHERE status IN ('pending', 'rejected')") ?? 0
+            let config = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM config_rows WHERE dirty <> 0") ?? 0
+            return changes + config
         }
     }
 
@@ -264,7 +268,9 @@ extension AppDatabase {
     }
 
     /// Stores a pulled page. Values with a pending local edit and config rows edited locally
-    /// after the server version are kept (the local edit is pushed next).
+    /// after the server version are kept (the local edit is pushed next). A value whose local
+    /// edit the server refused is kept too, unless the pulled value is newer (last write wins):
+    /// the refused edit stays on screen until it is offered again.
     func apply(_ batch: PullBatch) throws -> AppliedPull {
         let encoder = AppDatabase.makeEncoder()
         let decoder = JSONDecoder()
@@ -277,11 +283,14 @@ extension AppDatabase {
                 applied.tracks.append(track)
             }
             for value in batch.values {
-                let pending = try Bool.fetchOne(
+                let kept = try Bool.fetchOne(
                     db,
-                    sql: "SELECT EXISTS(SELECT 1 FROM journal WHERE status = 'pending' AND track_id = ? AND field_id = ?)",
-                    arguments: [value.trackID, value.fieldID]) ?? false
-                if pending { continue }
+                    sql: """
+                        SELECT EXISTS(SELECT 1 FROM journal WHERE track_id = ? AND field_id = ?
+                          AND (status = 'pending' OR (status = 'rejected' AND created_at >= ?)))
+                        """,
+                    arguments: [value.trackID, value.fieldID, value.updatedAt]) ?? false
+                if kept { continue }
                 try db.execute(
                     sql: "INSERT OR REPLACE INTO track_values (track_id, field_id, json) VALUES (?, ?, ?)",
                     arguments: [value.trackID, value.fieldID, try encoder.encode(value)])

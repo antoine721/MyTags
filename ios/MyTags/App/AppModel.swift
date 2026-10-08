@@ -144,8 +144,11 @@ final class AppModel {
 
     /// Forgets the device token and every local copy (tags already sent stay in the cloud).
     func unpair() {
+        // Nothing of the previous setup may survive in memory (its queue, its summary).
         player.stop()
         closeTagScreen()
+        tagSession = nil
+        sessionSummary = nil
         CredentialStore.delete()
         sync.configure(api: nil)
         downloader.api = nil
@@ -200,7 +203,22 @@ final class AppModel {
 
     func startDemo() async {
         // The demo replaces the local data: unsent edits of the real library must not go with it (R7).
-        if !isDemo, (try? database.hasUnsentEdits()) != false { return }
+        if !isDemo {
+            let unsent: Int
+            do {
+                unsent = try database.unsentEditCount()
+            } catch {
+                pairingError = error.localizedDescription
+                return
+            }
+            guard unsent == 0 else {
+                pairingError = unsent == 1
+                    ? "1 modification non envoyée : se reconnecter d'abord."
+                    : "\(unsent.formatted()) modifications non envoyées : se reconnecter d'abord."
+                return
+            }
+        }
+        pairingError = nil
         try? database.reset()
         cache.clearEverything()
         DemoData.install(into: database)
@@ -236,7 +254,8 @@ final class AppModel {
 
     /// Reopens the Tag screen (mini player tap).
     func reopenTagScreen() {
-        guard tagSession != nil else { return }
+        guard let tagSession else { return }
+        tagSession.reopen()
         isTagScreenPresented = true
     }
 

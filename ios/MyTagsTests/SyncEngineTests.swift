@@ -30,9 +30,34 @@ actor FakeSyncAPI: SyncAPI {
         let tables = [body.changes.count, body.fields.count, body.fieldOptions.count, body.rules.count,
                       body.savedViews.count, body.settings.count]
         if tables.contains(where: { $0 > 500 }) { throw APIError.http(413, "at most 500 items per request") }
-        let ids = body.changes.map(\.trackID) + body.fields.map(\.id) + body.settings.map(\.key)
-        if ids.contains(where: refusedIDs.contains) { throw APIError.http(400, "invalid row") }
+        // Like the Worker, the message names the first refused row.
+        if let index = body.changes.firstIndex(where: { refusedIDs.contains($0.trackID) }) {
+            throw APIError.http(400, "changes[\(index)].track_id is refused")
+        }
+        if let index = body.fields.firstIndex(where: { refusedIDs.contains($0.id) }) {
+            throw APIError.http(400, "fields[\(index)].kind is refused")
+        }
+        if let index = body.settings.firstIndex(where: { refusedIDs.contains($0.key) }) {
+            throw APIError.http(400, "settings[\(index)].value is refused")
+        }
         pushes.append(body)
+        return PushResponse(acceptedChanges: body.changes.map(\.id))
+    }
+}
+
+/// Worker stand-in whose pushes take a while, to act while one is in flight.
+actor SlowSyncAPI: SyncAPI {
+    private(set) var pushedIDs: [String] = []
+    private(set) var pushRequests = 0
+
+    func pull(cursors: [String: SyncCursor], limit: Int) async throws -> PullResponse {
+        try JSONDecoder().decode(PullResponse.self, from: Data(#"{"tables":{},"server_rev":1}"#.utf8))
+    }
+
+    func push(_ body: PushBody) async throws -> PushResponse {
+        pushRequests += 1
+        try await Task.sleep(for: .milliseconds(200))
+        pushedIDs += body.changes.map(\.id)
         return PushResponse(acceptedChanges: body.changes.map(\.id))
     }
 }
@@ -58,7 +83,7 @@ actor FakeSyncAPI: SyncAPI {
         try database.record(rows: [], changes: changes)
     }
 
-    private func engine(_ api: FakeSyncAPI) async -> SyncEngine {
+    private func engine(_ api: any SyncAPI) async -> SyncEngine {
         await store.load()
         let sync = SyncEngine(store: store)
         sync.configure(api: api)
@@ -132,6 +157,72 @@ actor FakeSyncAPI: SyncAPI {
         #expect(try database.pendingChanges().isEmpty)
         #expect(sync.rejectedCount == 2)
         #expect(try database.hasUnsentEdits())
+    }
+
+    @Test func requestLevelRefusalRejectsNothing() async throws {
+        try recordChanges(tracks: (0..<10).map { "t\($0)" })
+        let api = FakeSyncAPI(pushError: .http(400, "Request body is not valid JSON"))
+        let sync = await engine(api)
+        await sync.sync(pull: false)
+        #expect(await api.pushRequests == 1)  // no bisection
+        #expect(sync.rejectedCount == 0)
+        #expect(try database.pendingChanges().count == 10)
+        #expect(sync.lastError != nil)
+        #expect(SyncEngine.namesRow("changes[3].new_value must be an object or null"))
+        #expect(SyncEngine.namesRow("field_options[0].value is required"))
+        #expect(!SyncEngine.namesRow("changes must be an array"))
+    }
+
+    @Test func refusedEditStaysOnScreenUnlessTheServerIsNewer() async throws {
+        let edited = "2026-10-08T10:00:00.000Z"
+        try database.record(
+            rows: ["t1", "t2"].map { TrackValue(trackID: $0, fieldID: "f1", optionIDs: ["local"], updatedAt: edited) },
+            changes: ["t1", "t2"].map {
+                PendingChange(id: "c-\($0)", trackID: $0, fieldID: "f1", oldValue: nil, newValue: .option("local"),
+                              createdAt: edited)
+            })
+        let api = FakeSyncAPI(
+            refusedIDs: ["t1", "t2"],
+            pullJSON: """
+                {"tables":{"track_values":{"rows":[
+                  {"track_id":"t1","field_id":"f1","option_ids":["server"],"updated_at":"2026-10-08T09:00:00.000Z"},
+                  {"track_id":"t2","field_id":"f1","option_ids":["server"],"updated_at":"2026-10-08T11:00:00.000Z"}
+                ],"cursor":{"rev":9,"rowid":2},"has_more":false}},"server_rev":9}
+                """)
+        let sync = await engine(api)
+        await sync.sync()
+        #expect(sync.rejectedCount == 2)
+        let values = Dictionary(uniqueKeysWithValues: try database.loadAll().values.map { ($0.trackID, $0.optionIDs) })
+        #expect(values["t1"] == ["local"])  // the refused edit is newer: kept
+        #expect(values["t2"] == ["server"])  // a newer value from the server wins
+        #expect(store.rows["t1"]?["f1"]?.optionIDs == ["local"])
+    }
+
+    @Test func twoSyncRequestsNeverRunTogether() async throws {
+        try recordChanges(tracks: ["t1"])
+        let api = SlowSyncAPI()
+        let sync = await engine(api)
+        sync.syncNow(pull: false)
+        sync.syncNow(pull: false)
+        await sync.sync(pull: false)
+        #expect(await api.pushRequests == 1)
+        #expect(await api.pushedIDs == ["c-t1"])
+        #expect(sync.phase == .idle)
+    }
+
+    @Test func syncWaitsForTheRunningRunAndSendsLaterEdits() async throws {
+        try recordChanges(tracks: ["t1"])
+        let api = SlowSyncAPI()
+        let sync = await engine(api)
+        sync.syncNow(pull: false)
+        try await Task.sleep(for: .milliseconds(50))  // the first push is in flight
+        try database.record(rows: [], changes: [
+            PendingChange(id: "late", trackID: "t2", fieldID: "f1", oldValue: nil, newValue: .option("o1"),
+                          createdAt: "2026-10-08T11:00:00.000Z"),
+        ])
+        await sync.sync(pull: false)  // what the app does when it goes to the background
+        #expect(await api.pushedIDs == ["c-t1", "late"])
+        #expect(try database.pendingChanges().isEmpty)
     }
 
     @Test func unreadablePulledRowIsSkipped() throws {

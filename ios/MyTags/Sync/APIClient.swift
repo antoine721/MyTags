@@ -236,8 +236,15 @@ struct APIClient: SyncAPI {
         guard let http = response as? HTTPURLResponse else { throw APIError.http(0, "réponse invalide") }
         guard (200..<300).contains(http.statusCode) else {
             if http.statusCode == 401 { throw APIError.unauthorized }
-            throw APIError.http(http.statusCode, String(decoding: data.prefix(300), as: UTF8.self))
+            throw APIError.http(http.statusCode, Self.errorMessage(in: data))
         }
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    /// The `message` of a Worker error body (`{"error", "message"}`), else the start of the body.
+    static func errorMessage(in data: Data) -> String {
+        struct Body: Decodable { let message: String }
+        if let body = try? JSONDecoder().decode(Body.self, from: data) { return body.message }
+        return String(decoding: data.prefix(300), as: UTF8.self)
     }
 }
