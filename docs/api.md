@@ -34,7 +34,7 @@ Corps de la requête :
 - Seules les tables listées dans `cursors` sont renvoyées.
 - Tables accessibles avec un jeton d'appareil : `tracks`, `fields`, `field_options`, `track_values`, `rules`, `saved_views`, `settings`.
 - Le jeton administrateur donne en plus accès à `changes` et `apply_runs`.
-- `limit` : 1 000 par défaut, 2 000 au maximum, par table.
+- `limit` : 500 par défaut, 1 000 au maximum, par table.
 
 Réponse :
 

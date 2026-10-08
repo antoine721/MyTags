@@ -39,7 +39,7 @@ Les entrées de l'algorithme sont :
 1. Si le texte est absent ou vide après `norm`, résultat **incomplet**, toutes les positions vides.
 2. `t = norm(texte)` et `sep = séparateur compacté`, en majuscules.
 3. Exploration de toutes les façons de lire `t`. On parcourt les positions dans l'ordre. Pour chaque position, deux choix :
-   - **lire la position** : un candidat du champ, ou le jeton vide, doit commencer exactement à la position courante. Il doit être suivi soit de la fin du texte, soit de `sep`. Pour un champ à choix multiple : une suite de candidats séparés par le séparateur multiple ;
+   - **lire la position** : un candidat du champ, ou le jeton vide, doit commencer exactement à la position courante. Il doit être suivi soit de la fin du texte, soit de `sep` lui-même suivi d'au moins un caractère : un séparateur en fin de texte rend la lecture invalide. Pour un champ à choix multiple : une suite de candidats séparés par le séparateur multiple ;
    - **sauter la position** : elle est alors considérée absente.
 4. Une lecture est **valide** si elle consomme tout le texte.
 5. Parmi les lectures valides, on garde la meilleure selon ces critères, dans l'ordre :

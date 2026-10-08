@@ -1,0 +1,588 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "id": "d16618ff-069d-50e4-a35e-bd7f4a662907",
+      "key": "genre",
+      "name": "Genre",
+      "kind": "single",
+      "target_tag": "GENRE",
+      "target_slot": null,
+      "required": true,
+      "visible": true,
+      "position": 0,
+      "default_option_id": null,
+      "is_advance_trigger": false,
+      "artist_level": true,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "56c802f3-21bb-5242-b236-ee40cfa74376",
+      "key": "couleur",
+      "name": "Couleur",
+      "kind": "single",
+      "target_tag": "GROUPING",
+      "target_slot": null,
+      "required": true,
+      "visible": true,
+      "position": 1,
+      "default_option_id": null,
+      "is_advance_trigger": false,
+      "artist_level": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "58a3db1b-25fe-5af5-a62e-330d360e4ca4",
+      "key": "pays",
+      "name": "Pays",
+      "kind": "single",
+      "target_tag": "COMMENT",
+      "target_slot": 1,
+      "required": true,
+      "visible": true,
+      "position": 2,
+      "default_option_id": null,
+      "is_advance_trigger": false,
+      "artist_level": true,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "b310a904-99d7-547f-b791-9f647eb46bb6",
+      "key": "type",
+      "name": "Type",
+      "kind": "single",
+      "target_tag": "COMMENT",
+      "target_slot": 2,
+      "required": true,
+      "visible": true,
+      "position": 3,
+      "default_option_id": null,
+      "is_advance_trigger": false,
+      "artist_level": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "570f47a9-c951-57ae-bb1c-3bbb091234a3",
+      "key": "attribut",
+      "name": "Attribut",
+      "kind": "single",
+      "target_tag": "COMMENT",
+      "target_slot": 3,
+      "required": false,
+      "visible": true,
+      "position": 4,
+      "default_option_id": "bc85a049-b586-5c70-a07e-949b93ca0d79",
+      "is_advance_trigger": false,
+      "artist_level": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "f47038dd-3606-57dd-8eb7-44c39315eb48",
+      "key": "note",
+      "name": "Note",
+      "kind": "rating",
+      "target_tag": "RATING",
+      "target_slot": null,
+      "required": true,
+      "visible": true,
+      "position": 5,
+      "default_option_id": null,
+      "is_advance_trigger": true,
+      "artist_level": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    }
+  ],
+  "field_options": [
+    {
+      "id": "b504918d-a09f-5af7-ba3f-9e7bd2b7d221",
+      "field_id": "d16618ff-069d-50e4-a35e-bd7f4a662907",
+      "value": "RAP FR",
+      "label": "RAP FR",
+      "color": null,
+      "aliases": [],
+      "position": 0,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "59417d3a-22bc-5a8a-8fc3-39fd9914be01",
+      "field_id": "d16618ff-069d-50e4-a35e-bd7f4a662907",
+      "value": "RAP US",
+      "label": "RAP US",
+      "color": null,
+      "aliases": [],
+      "position": 1,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "e81f2957-ff04-5c90-a3ef-b18bcd118739",
+      "field_id": "d16618ff-069d-50e4-a35e-bd7f4a662907",
+      "value": "POP",
+      "label": "POP",
+      "color": null,
+      "aliases": [],
+      "position": 2,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "61a8b2e9-dd4b-5625-b508-d9cbcad79f80",
+      "field_id": "d16618ff-069d-50e4-a35e-bd7f4a662907",
+      "value": "BOUYON",
+      "label": "BOUYON",
+      "color": null,
+      "aliases": [],
+      "position": 3,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "bed2b155-90f5-5f2d-a5fe-e9c92d222fd3",
+      "field_id": "d16618ff-069d-50e4-a35e-bd7f4a662907",
+      "value": "SHATTA",
+      "label": "SHATTA",
+      "color": null,
+      "aliases": [],
+      "position": 4,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "5af8cf06-8ac2-5fd0-a8a9-9140c3b8e0bf",
+      "field_id": "d16618ff-069d-50e4-a35e-bd7f4a662907",
+      "value": "ZOUKOMPA",
+      "label": "ZOUKOMPA",
+      "color": null,
+      "aliases": [],
+      "position": 5,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "e796be07-47fc-5b83-bf3f-c6e363ad2614",
+      "field_id": "56c802f3-21bb-5242-b236-ee40cfa74376",
+      "value": "VERT",
+      "label": "VERT",
+      "color": "systemGreen",
+      "aliases": [],
+      "position": 0,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "adcb0c12-5987-5ebc-be16-b0e0c6429015",
+      "field_id": "56c802f3-21bb-5242-b236-ee40cfa74376",
+      "value": "JAUNE",
+      "label": "JAUNE",
+      "color": "systemYellow",
+      "aliases": [],
+      "position": 1,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "d5a66596-f302-52d3-a308-0bfe47a3cea3",
+      "field_id": "56c802f3-21bb-5242-b236-ee40cfa74376",
+      "value": "ROUGE",
+      "label": "ROUGE",
+      "color": "systemRed",
+      "aliases": [],
+      "position": 2,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "17f1d3b0-3940-5b58-8a06-be12f970f335",
+      "field_id": "56c802f3-21bb-5242-b236-ee40cfa74376",
+      "value": "BLEU",
+      "label": "BLEU",
+      "color": "systemBlue",
+      "aliases": [],
+      "position": 3,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "86c8d9a8-bb54-5014-be72-58c37ecb3c79",
+      "field_id": "56c802f3-21bb-5242-b236-ee40cfa74376",
+      "value": "VIOLET",
+      "label": "VIOLET",
+      "color": "systemPurple",
+      "aliases": [],
+      "position": 4,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "e073261c-ae1e-532b-9050-f9a9679b7a5c",
+      "field_id": "58a3db1b-25fe-5af5-a62e-330d360e4ca4",
+      "value": "FR",
+      "label": "FR",
+      "color": null,
+      "aliases": [],
+      "position": 0,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "14212deb-8680-5a8c-958b-67ad73028dea",
+      "field_id": "58a3db1b-25fe-5af5-a62e-330d360e4ca4",
+      "value": "US",
+      "label": "US",
+      "color": null,
+      "aliases": [],
+      "position": 1,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "8dc318e5-2157-58ce-a488-1689d72a9af7",
+      "field_id": "58a3db1b-25fe-5af5-a62e-330d360e4ca4",
+      "value": "UK",
+      "label": "UK",
+      "color": null,
+      "aliases": [],
+      "position": 2,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "ad8ac65f-c84f-58f0-b634-f528d25b6527",
+      "field_id": "b310a904-99d7-547f-b791-9f647eb46bb6",
+      "value": "EXTEND",
+      "label": "EXTEND",
+      "color": null,
+      "aliases": [],
+      "position": 0,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "191c776b-e1c9-5cec-925e-0b1ee82ff319",
+      "field_id": "b310a904-99d7-547f-b791-9f647eb46bb6",
+      "value": "REMIX",
+      "label": "REMIX",
+      "color": null,
+      "aliases": [],
+      "position": 1,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "a7d1dc96-1271-522f-8b8c-a7762456cc15",
+      "field_id": "b310a904-99d7-547f-b791-9f647eb46bb6",
+      "value": "EDIT",
+      "label": "EDIT",
+      "color": null,
+      "aliases": [],
+      "position": 2,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "2dbf637a-3953-581e-ac80-a81812bd892d",
+      "field_id": "570f47a9-c951-57ae-bb1c-3bbb091234a3",
+      "value": "NICHE",
+      "label": "NICHE",
+      "color": null,
+      "aliases": [],
+      "position": 0,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "c5bd565a-17e5-5fef-9bae-983522278c8b",
+      "field_id": "570f47a9-c951-57ae-bb1c-3bbb091234a3",
+      "value": "SEXY",
+      "label": "SEXY",
+      "color": null,
+      "aliases": [],
+      "position": 1,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "0b17b40d-e9be-5144-adb5-c1421b10e176",
+      "field_id": "570f47a9-c951-57ae-bb1c-3bbb091234a3",
+      "value": "TIKTOK",
+      "label": "TIKTOK",
+      "color": null,
+      "aliases": [],
+      "position": 2,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "d030d5c0-1f23-54ea-a197-88770d8dd805",
+      "field_id": "570f47a9-c951-57ae-bb1c-3bbb091234a3",
+      "value": "ELECTROPOP",
+      "label": "ELECTROPOP",
+      "color": null,
+      "aliases": [],
+      "position": 3,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "b9fad199-0bd4-57da-9949-51e6caf022d6",
+      "field_id": "570f47a9-c951-57ae-bb1c-3bbb091234a3",
+      "value": "AFRO",
+      "label": "AFRO",
+      "color": null,
+      "aliases": [],
+      "position": 4,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "a620b32b-f34f-58dc-acd1-bd984f3289aa",
+      "field_id": "570f47a9-c951-57ae-bb1c-3bbb091234a3",
+      "value": "SINGALONG",
+      "label": "SINGALONG",
+      "color": null,
+      "aliases": [],
+      "position": 5,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "bc85a049-b586-5c70-a07e-949b93ca0d79",
+      "field_id": "570f47a9-c951-57ae-bb1c-3bbb091234a3",
+      "value": "()",
+      "label": "()",
+      "color": null,
+      "aliases": [],
+      "position": 6,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    }
+  ],
+  "rules": [
+    {
+      "id": "0f18a5b8-dac3-5356-b3ae-c697ec5df917",
+      "name": "Titre « extended » → Type EXTEND",
+      "enabled": true,
+      "position": 0,
+      "condition": {
+        "type": "title_contains",
+        "patterns": [
+          "extended",
+          "extend"
+        ]
+      },
+      "action": {
+        "field_id": "b310a904-99d7-547f-b791-9f647eb46bb6",
+        "option_id": "ad8ac65f-c84f-58f0-b634-f528d25b6527"
+      },
+      "mode": "suggest",
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "550f757b-9258-54d5-8492-58fe06a8f57a",
+      "name": "Titre « remix » → Type REMIX",
+      "enabled": true,
+      "position": 1,
+      "condition": {
+        "type": "title_contains",
+        "patterns": [
+          "remix",
+          "rmx"
+        ]
+      },
+      "action": {
+        "field_id": "b310a904-99d7-547f-b791-9f647eb46bb6",
+        "option_id": "191c776b-e1c9-5cec-925e-0b1ee82ff319"
+      },
+      "mode": "suggest",
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "5af23eac-bc65-5adf-ade1-9f65d3437351",
+      "name": "Titre « edit » → Type EDIT",
+      "enabled": true,
+      "position": 2,
+      "condition": {
+        "type": "title_contains",
+        "patterns": [
+          "edit"
+        ]
+      },
+      "action": {
+        "field_id": "b310a904-99d7-547f-b791-9f647eb46bb6",
+        "option_id": "a7d1dc96-1271-522f-8b8c-a7762456cc15"
+      },
+      "mode": "suggest",
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "fb3726bb-ac6f-539b-945a-6b3819c30205",
+      "name": "Genre RAP FR → Pays FR",
+      "enabled": true,
+      "position": 3,
+      "condition": {
+        "type": "field_equals",
+        "field_id": "d16618ff-069d-50e4-a35e-bd7f4a662907",
+        "option_id": "b504918d-a09f-5af7-ba3f-9e7bd2b7d221"
+      },
+      "action": {
+        "field_id": "58a3db1b-25fe-5af5-a62e-330d360e4ca4",
+        "option_id": "e073261c-ae1e-532b-9050-f9a9679b7a5c"
+      },
+      "mode": "suggest",
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "1517435e-0800-54f9-9f30-83563cb54f07",
+      "name": "Genre RAP US → Pays US",
+      "enabled": true,
+      "position": 4,
+      "condition": {
+        "type": "field_equals",
+        "field_id": "d16618ff-069d-50e4-a35e-bd7f4a662907",
+        "option_id": "59417d3a-22bc-5a8a-8fc3-39fd9914be01"
+      },
+      "action": {
+        "field_id": "58a3db1b-25fe-5af5-a62e-330d360e4ca4",
+        "option_id": "14212deb-8680-5a8c-958b-67ad73028dea"
+      },
+      "mode": "suggest",
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    }
+  ],
+  "saved_views": [
+    {
+      "id": "bea5ec30-de68-5046-8566-77bc97258908",
+      "name": "À compléter",
+      "filters": {
+        "special": [
+          "incomplete"
+        ]
+      },
+      "sort": {
+        "key": "artist",
+        "ascending": true
+      },
+      "skip_complete": true,
+      "position": 0,
+      "builtin": true,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "df460244-3720-5df3-8996-aee612078b04",
+      "name": "Non tagués",
+      "filters": {
+        "special": [
+          "untagged"
+        ]
+      },
+      "sort": {
+        "key": "artist",
+        "ascending": true
+      },
+      "skip_complete": false,
+      "position": 1,
+      "builtin": true,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "8fcddbea-ab30-5824-8303-85028f86b4d4",
+      "name": "À appliquer",
+      "filters": {
+        "special": [
+          "to_apply"
+        ]
+      },
+      "sort": {
+        "key": "artist",
+        "ascending": true
+      },
+      "skip_complete": false,
+      "position": 2,
+      "builtin": true,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "13241107-7780-5ddc-beca-efe077c521fa",
+      "name": "COMMENT à vérifier",
+      "filters": {
+        "special": [
+          "comment_non_conforme"
+        ]
+      },
+      "sort": {
+        "key": "artist",
+        "ascending": true
+      },
+      "skip_complete": false,
+      "position": 3,
+      "builtin": true,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    }
+  ],
+  "settings": [
+    {
+      "key": "comment.separator",
+      "value": " ",
+      "updated_at": "2026-10-08T00:00:00.000Z"
+    },
+    {
+      "key": "comment.empty_token",
+      "value": "()",
+      "updated_at": "2026-10-08T00:00:00.000Z"
+    },
+    {
+      "key": "multi.separator",
+      "value": "/",
+      "updated_at": "2026-10-08T00:00:00.000Z"
+    },
+    {
+      "key": "rating.write_formats",
+      "value": [
+        "mp3",
+        "wav",
+        "aiff"
+      ],
+      "updated_at": "2026-10-08T00:00:00.000Z"
+    }
+  ]
+}
