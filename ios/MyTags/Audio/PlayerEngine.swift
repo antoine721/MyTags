@@ -61,6 +61,8 @@ final class PlayerEngine {
     @ObservationIgnored private var fadeTask: Task<Void, Never>?
     @ObservationIgnored private var prepared: (id: String, item: AVPlayerItem)?
     @ObservationIgnored private var currentTrack: Track?
+    /// Whether the track shown should play once its file is there.
+    @ObservationIgnored private var wantedPlay = false
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var isScrubbing = false
     @ObservationIgnored private var sessionActive = false
@@ -87,6 +89,13 @@ final class PlayerEngine {
 
     // MARK: Loading
 
+    /// A file that arrives in the cache for the track shown as unavailable (demo audio being
+    /// generated, a trip download) is picked up without changing track.
+    func reloadIfNowAvailable(_ offlineIDs: Set<String>) {
+        guard availability == .unavailable, let track = currentTrack, offlineIDs.contains(track.id) else { return }
+        load(track, autoplay: wantedPlay)
+    }
+
     /// Shows `track` and plays it from the start point when `autoplay` (and the file is local or arrives).
     func load(_ track: Track, autoplay: Bool) {
         loadTask?.cancel()
@@ -96,6 +105,7 @@ final class PlayerEngine {
         startTime = startPoint.seconds(for: track)
         currentTime = startTime
         let wantsPlay = autoplay || isPlaying
+        wantedPlay = wantsPlay
         if let url = cache.localURL(for: track.id) {
             availability = .ready
             start(track: track, url: url, play: wantsPlay)
