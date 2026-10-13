@@ -120,6 +120,12 @@ struct LibraryView: View {
         open(at: first)
     }
 
+    /// Swipe mode on the displayed list: left archives, right keeps (tracks already sorted are skipped).
+    private func sortActualite() async {
+        guard let archive = await app.store.archiveField() else { return }
+        app.openTagScreen(trackIDs: model.results, title: "Actualité", swipe: archive)
+    }
+
     private func play(_ id: String) {
         guard let track = app.store.tracks[id] else { return }
         app.player.load(track, autoplay: true)
@@ -217,9 +223,16 @@ struct LibraryView: View {
                 } label: {
                     Label("Préparer mon trajet", systemImage: "arrow.down.circle")
                 }
+                Button {
+                    Task { await sortActualite() }
+                } label: {
+                    Label("Trier l'actualité", systemImage: "rectangle.stack")
+                }
+                .disabled(model.results.isEmpty)
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
+            .accessibilityIdentifier("libraryMenu")
         }
     }
 

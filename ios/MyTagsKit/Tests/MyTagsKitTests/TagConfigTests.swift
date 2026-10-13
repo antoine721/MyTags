@@ -7,9 +7,10 @@ struct TagConfigTests {
     @Test("Default configuration lookups")
     func defaultLookups() throws {
         let config = try #require(Fixtures.defaultConfig)
-        #expect(config.fields.map(\.key) == ["genre", "couleur", "pays", "type", "attribut", "note"])
+        #expect(config.fields.map(\.key) == ["genre", "couleur", "pays", "type", "attribut", "note", "actualite"])
         #expect(config.visibleFields.count == 6)
         #expect(config.commentFields.map(\.key) == ["pays", "type", "attribut"])
+        #expect(config.keywordFields.map(\.key) == ["actualite"])
         #expect(config.commentSlotCount == 3)
         #expect(config.commentField(atSlot: 2)?.key == "type")
         #expect(config.field(for: .genre)?.key == "genre")

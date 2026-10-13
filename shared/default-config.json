@@ -96,6 +96,22 @@
       "artist_level": false,
       "updated_at": "2026-10-08T00:00:00.000Z",
       "deleted_at": null
+    },
+    {
+      "id": "fbadeb64-87dd-5b07-8f93-da92e03df7e6",
+      "key": "actualite",
+      "name": "Actualité",
+      "kind": "single",
+      "target_tag": "COMMENT",
+      "target_slot": null,
+      "required": false,
+      "visible": false,
+      "position": 6,
+      "default_option_id": null,
+      "is_advance_trigger": false,
+      "artist_level": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
     }
   ],
   "field_options": [
@@ -383,6 +399,18 @@
       "color": null,
       "aliases": [],
       "position": 6,
+      "archived": false,
+      "updated_at": "2026-10-08T00:00:00.000Z",
+      "deleted_at": null
+    },
+    {
+      "id": "a1d69d58-a009-50d9-9611-3a5095debbab",
+      "field_id": "fbadeb64-87dd-5b07-8f93-da92e03df7e6",
+      "value": "ARCHIVE",
+      "label": "ARCHIVE",
+      "color": null,
+      "aliases": [],
+      "position": 0,
       "archived": false,
       "updated_at": "2026-10-08T00:00:00.000Z",
       "deleted_at": null

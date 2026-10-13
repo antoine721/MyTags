@@ -6,6 +6,13 @@ struct Candidate: Hashable, Sendable {
     let optionID: String
 }
 
+/// A recognised text of a keyword field's option, as normalised words.
+struct KeywordCandidate: Hashable, Sendable {
+    let words: [[Unicode.Scalar]]
+    let fieldID: String
+    let optionID: String
+}
+
 struct OptionIndex: Hashable, Sendable {
     let fieldID: String
     let rank: Int
@@ -38,6 +45,9 @@ public struct TagConfig: Sendable {
     public let ratingWriteFormats: [String]
     /// Fields targeting the COMMENT, ordered by `target_slot`: the positions read by ``CommentCodec``.
     public let commentFields: [Field]
+    /// Single-choice fields targeting the COMMENT without a slot, in display order: their value is
+    /// a keyword appended to the COMMENT (`docs/modele-tags.md`, section 4 bis).
+    public let keywordFields: [Field]
     /// Number of COMMENT positions written by ``CommentCodec/compose(values:config:)``: the largest slot.
     public let commentSlotCount: Int
 
@@ -54,6 +64,8 @@ public struct TagConfig: Sendable {
     let candidatesByField: [String: [Candidate]]
     /// Candidates of each COMMENT position (``commentFields`` order).
     let commentCandidates: [[Candidate]]
+    /// Candidates of the keyword fields, in field then option order.
+    let keywordCandidates: [KeywordCandidate]
     /// Whether a COMMENT position has a candidate equal to the empty token.
     let commentEmptyIsOption: [Bool]
     let separatorScalars: [Unicode.Scalar]
@@ -132,6 +144,16 @@ public struct TagConfig: Sendable {
             }
             .map(\.element)
         commentFields = comment
+        let keywords = liveFields.filter { $0.targetTag == .comment && $0.targetSlot == nil && $0.kind == .single }
+        keywordFields = keywords
+        keywordCandidates = keywords.flatMap { field in
+            grouped[field.id, default: []].flatMap { option in
+                option.candidates.compactMap { text -> KeywordCandidate? in
+                    let words = TextNormalizer.words(TextNormalizer.norm(text)).map(TextNormalizer.scalars)
+                    return words.isEmpty ? nil : KeywordCandidate(words: words, fieldID: field.id, optionID: option.id)
+                }
+            }
+        }
         var slotFields: [Int: String] = [:]
         for field in comment {
             if let slot = field.targetSlot, slot >= 1 { slotFields[slot] = field.id }

@@ -19,6 +19,7 @@ class CommentParse:
     status: str
     values: dict[str, FieldValue] = field(default_factory=dict)  # field id -> value
     explicit_empty: frozenset[str] = frozenset()  # field ids read as the empty token
+    rest: str | None = None  # the COMMENT without its keywords (section 4 bis)
 
     @property
     def is_readable(self) -> bool:
@@ -32,7 +33,50 @@ class _SlotRead:
     length: int  # matched text length, for the tie-break
 
 
+def split_keywords(comment: str | None, config: TagConfig) -> tuple[str | None, dict[str, FieldValue]]:
+    """Remove the keyword fields' words from the COMMENT (section 4 bis): (rest, values by field id)."""
+    fields = config.keyword_fields()
+    if comment is None or not fields:
+        return comment, {}
+    candidates = [
+        (f.id, tuple(norm(text).split()), opt.id)
+        for f in fields
+        for opt in config.options(f.id)
+        for text in opt.candidates
+        if norm(text)
+    ]
+    words = comment.split()
+    upper = [norm(w) for w in words]
+    found: dict[str, FieldValue] = {}
+    kept: list[str] = []
+    i = 0
+    while i < len(words):
+        hit = next(
+            (
+                (fid, len(c), oid)
+                for fid, c, oid in candidates
+                if fid not in found and tuple(upper[i : i + len(c)]) == c
+            ),
+            None,
+        )
+        if hit is None:
+            kept.append(words[i])
+            i += 1
+            continue
+        field_id, length, option_id = hit
+        found[field_id] = FieldValue(option_ids=(option_id,))
+        i += length
+    return (" ".join(kept) if found else comment), found
+
+
 def parse_comment(comment: str | None, config: TagConfig) -> CommentParse:
+    rest, keywords = split_keywords(comment, config)
+    parsed = _parse_slots(rest, config)
+    values = {**parsed.values, **keywords}
+    return CommentParse(parsed.status, values, parsed.explicit_empty, rest)
+
+
+def _parse_slots(comment: str | None, config: TagConfig) -> CommentParse:
     slots = config.comment_fields()
     text = norm(comment)
     if not text:
