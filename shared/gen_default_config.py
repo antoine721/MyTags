@@ -14,6 +14,8 @@ fields_spec = [
   dict(key="attribut", name="Attribut", kind="single", target_tag="COMMENT", target_slot=3, required=False, visible=True, artist_level=False, is_advance_trigger=False, default="()",
        options=["NICHE", "SEXY", "TIKTOK", "ELECTROPOP", "AFRO", "SINGALONG", "()"]),
   dict(key="note", name="Note", kind="rating", target_tag="RATING", target_slot=None, required=True, visible=True, artist_level=False, is_advance_trigger=True, default=None, options=[]),
+  dict(key="actualite", name="Actualité", kind="single", target_tag="COMMENT", target_slot=None, required=False, visible=False, artist_level=False, is_advance_trigger=False, default=None,
+       options=["ARCHIVE"]),
 ]
 fields, options = [], []
 for pos, f in enumerate(fields_spec):

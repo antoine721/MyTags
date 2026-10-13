@@ -16,8 +16,8 @@ struct DecodingTests {
     func defaultConfig() throws {
         let document = try ConfigDocument.decode(from: Repo.data("shared/default-config.json"))
         #expect(document.version == 1)
-        #expect(document.fields.map(\.key) == ["genre", "couleur", "pays", "type", "attribut", "note"])
-        #expect(document.fieldOptions.count == 24)
+        #expect(document.fields.map(\.key) == ["genre", "couleur", "pays", "type", "attribut", "note", "actualite"])
+        #expect(document.fieldOptions.count == 25)
         #expect(document.rules.count == 5)
         #expect(document.savedViews.count == 4)
         #expect(document.settings.count == 4)

@@ -15,6 +15,13 @@
 - Intégration Claude Code : `CLAUDE.md`, skill `appliquer-tags`, garde-fous.
 - `djtag apply --copy-to <dossier>` : essai sur des copies hors de la bibliothèque (règle R4).
 - Guide pas à pas : `docs/premiere-installation.md`.
+- Tri « Actualité » à la Tinder (Bibliothèque › ⋯ › Trier l'actualité, ou ⋯ › Actualité sur l'écran
+  Taguer) : glisser à gauche ajoute `ARCHIVE` au COMMENT, à droite garde le morceau ; boutons et
+  « Annuler » équivalents. Les crates Serato GENRE excluent les COMMENT contenant ARCHIVE.
+- Modèle des tags : champs **mot-clé** du COMMENT (champ à choix unique ciblant le COMMENT sans
+  position), reconnus n'importe où et ajoutés à la fin, sans toucher au reste du COMMENT
+  (`docs/modele-tags.md`, section 4 bis). Nouveau champ « Actualité » (valeur `ARCHIVE`, masqué de
+  l'écran Taguer) dans la configuration par défaut ; l'app le crée s'il manque.
 
 ### Modifié (relecture avant la première installation)
 - Écran Taguer : bouton « Taguer » en un tap depuis la vue en cours ; ouverture sur « À compléter » (dernière

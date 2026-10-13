@@ -63,6 +63,15 @@ struct TagScreen: View {
 
     @ViewBuilder
     private func content(track: Track) -> some View {
+        if case .swipe = session.mode {
+            SwipeDeckView(session: session, track: track)
+        } else {
+            tagContent(track: track)
+        }
+    }
+
+    @ViewBuilder
+    private func tagContent(track: Track) -> some View {
         let resolved = session.resolved
         let large = dynamicTypeSize >= .accessibility1
         ViewThatFits(in: .vertical) {
@@ -195,6 +204,18 @@ struct TagScreen: View {
             Menu("Passe rapide") {
                 ForEach(session.config.visibleFields.filter { $0.kind == .single }) { field in
                     Button(field.name) { session.startQuickPass(fieldID: field.id) }
+                }
+            }
+            Button {
+                Task {
+                    guard let (field, option) = await app.store.archiveField() else { return }
+                    session.startSwipe(field: field, option: option)
+                }
+            } label: {
+                if case .swipe = session.mode {
+                    Label("Actualité", systemImage: "checkmark")
+                } else {
+                    Label("Actualité", systemImage: "rectangle.stack")
                 }
             }
         }

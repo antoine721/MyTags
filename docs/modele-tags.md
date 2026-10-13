@@ -56,6 +56,19 @@ Les entrées de l'algorithme sont :
 
 Un COMMENT non conforme ne donne aucune valeur. Il est conservé tel quel tant que l'utilisateur ne modifie aucune des positions.
 
+## 4 bis. Mots-clés du COMMENT
+
+Un champ à choix unique qui cible le COMMENT **sans** `target_slot` est un **champ mot-clé** (exemple : « Actualité », valeur `ARCHIVE`). Son texte n'occupe pas de position : il s'ajoute à la fin du COMMENT, et il est reconnu où qu'il soit. Les champs mot-clé d'un autre type sont ignorés.
+
+Lecture, avant celle de la section 4 :
+
+1. Le COMMENT est découpé en mots selon les espaces (toute suite d'espaces sépare deux mots). Chaque candidat d'un champ mot-clé est découpé de la même façon, après `norm`.
+2. On parcourt les mots de gauche à droite. À chaque mot, on essaie les champs mot-clé dans l'ordre d'affichage, puis leurs candidats dans l'ordre (valeur, puis alias) : le premier candidat d'un champ pas encore reconnu dont tous les mots sont égaux, après `norm`, aux mots suivants du COMMENT est reconnu, et ses mots sont retirés. Seule la première occurrence par champ est retirée : les suivantes restent dans le texte.
+3. Le **reste** est le COMMENT d'origine si rien n'a été reconnu ; sinon, les mots restants joints par une espace.
+4. La section 4 s'applique au reste. Les valeurs des champs mot-clé s'ajoutent à son résultat, sans changer le statut.
+
+Écriture : voir la section 7.
+
 ## 5. Composition du COMMENT
 
 - Positions : de 1 jusqu'au plus grand `target_slot` des champs qui ciblent le COMMENT. Une position sans champ s'écrit avec le jeton vide.
@@ -84,7 +97,7 @@ Pour un morceau, le **tag cible** de chaque tag géré se calcule ainsi :
 | --- | --- |
 | GENRE, GROUPING | Si le champ qui le cible n'a pas de ligne `track_values` : identique à la Référence. Sinon : choix unique → `value` ; choix multiple → jonction ; texte → texte ; vide → absent (`null`). |
 | RATING | Comme ci-dessus, avec la note entière. Si le format du fichier n'est pas dans le réglage `rating.write_formats` : identique à la Référence. |
-| COMMENT | Si aucun champ du COMMENT n'a de ligne `track_values` : identique à la Référence. Sinon : composition (section 5), où chaque position prend la valeur de sa ligne si elle existe. À défaut, elle prend la valeur lue dans la Référence si le COMMENT de la Référence n'est pas non conforme. Sinon, elle est vide. |
+| COMMENT | Si aucun champ du COMMENT (positions et mots-clés) n'a de ligne `track_values` : identique à la Référence. Sinon : une **base**, puis les mots-clés. Base : si un champ à position a une ligne, composition (section 5), où chaque position prend la valeur de sa ligne si elle existe. À défaut, elle prend la valeur lue dans la Référence si le COMMENT de la Référence n'est pas non conforme. Sinon, elle est vide. Si seuls des champs mot-clé ont une ligne, la base est le reste de la Référence (section 4 bis), absent → vide. Mots-clés : pour chaque champ mot-clé, dans l'ordre d'affichage, la `value` de sa ligne si elle existe, sinon celle lue dans la Référence ; une ligne vide n'ajoute rien. S'il n'y a aucun mot-clé, le COMMENT est la base telle quelle. Sinon, c'est la base sans ses espaces de fin, suivie des mots-clés, le tout joint par **une espace** (quel que soit le séparateur), sans espaces au début ni à la fin. |
 
 Un morceau est **à appliquer** si au moins un tag cible diffère de la Référence. Comparaison exacte des textes, mais `null` et `""` sont équivalents.
 

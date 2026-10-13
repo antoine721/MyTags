@@ -60,17 +60,30 @@ public enum TargetCalculator {
             target.rating = value.rating
         }
         let commentFields = config.commentFields
-        if commentFields.contains(where: { rows[$0.id] != nil }) {
+        let keywordFields = config.keywordFields
+        if (commentFields + keywordFields).contains(where: { rows[$0.id] != nil }) {
             let parse = commentParse ?? CommentCodec.parse(baseline.comment, config: config)
-            var slotValues: [String: FieldValue] = [:]
-            for field in commentFields {
-                if let row = rows[field.id] {
-                    slotValues[field.id] = row
-                } else if parse.isReadable, let value = parse.values[field.id] {
-                    slotValues[field.id] = value
+            var base = ""
+            if commentFields.contains(where: { rows[$0.id] != nil }) {
+                var slotValues: [String: FieldValue] = [:]
+                for field in commentFields {
+                    if let row = rows[field.id] {
+                        slotValues[field.id] = row
+                    } else if parse.isReadable, let value = parse.values[field.id] {
+                        slotValues[field.id] = value
+                    }
                 }
+                base = CommentCodec.compose(values: slotValues, config: config)
+            } else {
+                base = parse.rest ?? ""
             }
-            target.comment = CommentCodec.compose(values: slotValues, config: config)
+            let keywords = keywordFields.compactMap { field -> String? in
+                guard let value = rows[field.id] ?? parse.values[field.id] else { return nil }
+                return CommentCodec.slotText(value, field: field, config: config)
+            }
+            // Keywords are words: always joined by one space, whatever the COMMENT separator.
+            target.comment = keywords.isEmpty
+                ? base : TextNormalizer.trim(([TextNormalizer.trimEnd(base)] + keywords).joined(separator: " "))
         }
         return target
     }

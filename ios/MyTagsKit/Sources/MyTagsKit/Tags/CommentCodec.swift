@@ -7,14 +7,19 @@ public struct CommentParse: Hashable, Sendable {
     public var values: [String: FieldValue]
     /// Fields read as the empty token while having no option equal to it.
     public var explicitEmpty: Set<String>
+    /// The COMMENT without the words of keyword fields (`docs/modele-tags.md`, section 4 bis).
+    public var rest: String?
 
-    public init(status: CommentStatus, values: [String: FieldValue] = [:], explicitEmpty: Set<String> = []) {
+    public init(
+        status: CommentStatus, values: [String: FieldValue] = [:], explicitEmpty: Set<String> = [], rest: String? = nil
+    ) {
         self.status = status
         self.values = values
         self.explicitEmpty = explicitEmpty
+        self.rest = rest
     }
 
-    /// `false` for a non-conforming COMMENT, whose values are never used.
+    /// `false` for a non-conforming COMMENT, whose position values are never used (keywords still are).
     public var isReadable: Bool { status != .nonConforme }
 }
 
@@ -29,7 +34,43 @@ public enum CommentCodec {
     /// read positions, then the longest text at the first position where lengths differ. On a full
     /// tie the first reading found wins; the search tries candidates in option order (value, then
     /// aliases), then the empty token, then skipping.
+    ///
+    /// Keyword fields (``TagConfig/keywordFields``) are read first, wherever they are, and removed
+    /// from the text read by position; their values are added whatever the status.
     public static func parse(_ comment: String?, config: TagConfig) -> CommentParse {
+        let (rest, keywords) = splitKeywords(comment, config: config)
+        var result = parseSlots(rest, config: config)
+        result.values.merge(keywords) { _, keyword in keyword }
+        result.rest = rest
+        return result
+    }
+
+    /// Removes the first match of each keyword field: the rest (the original text when nothing
+    /// matched, else the remaining words joined by one space) and the value found per field.
+    static func splitKeywords(_ comment: String?, config: TagConfig) -> (String?, [String: FieldValue]) {
+        guard let comment, !config.keywordCandidates.isEmpty else { return (comment, [:]) }
+        let words = TextNormalizer.words(comment)
+        let upper = words.map { TextNormalizer.scalars(TextNormalizer.norm($0)) }
+        var found: [String: FieldValue] = [:]
+        var kept: [String] = []
+        var index = 0
+        while index < words.count {
+            let hit = config.keywordCandidates.first { candidate in
+                found[candidate.fieldID] == nil && index + candidate.words.count <= upper.count
+                    && zip(candidate.words, upper[index...]).allSatisfy { $0 == $1 }
+            }
+            guard let hit else {
+                kept.append(words[index])
+                index += 1
+                continue
+            }
+            found[hit.fieldID] = FieldValue(optionIDs: [hit.optionID])
+            index += hit.words.count
+        }
+        return (found.isEmpty ? comment : kept.joined(separator: " "), found)
+    }
+
+    private static func parseSlots(_ comment: String?, config: TagConfig) -> CommentParse {
         let text = TextNormalizer.scalars(TextNormalizer.norm(comment))
         guard !text.isEmpty else { return CommentParse(status: .incomplet) }
         var search = Search(text: text, config: config)

@@ -113,6 +113,14 @@ class TagConfig:
             key=lambda f: f.target_slot or 0,
         )
 
+    def keyword_fields(self) -> list[Field]:
+        """Single-choice fields targeting the COMMENT without a slot, in display order (section 4 bis)."""
+        return [
+            f
+            for f in self.fields
+            if f.target_tag == "COMMENT" and f.target_slot is None and f.kind == "single"
+        ]
+
     def option_sort_key(self, option_id: str) -> tuple[int, str]:
         opt = self.option_by_id.get(option_id)
         return (opt.position, opt.value) if opt else (1 << 30, option_id)

@@ -48,9 +48,20 @@ Le catalogue se télécharge (quelques Mo), puis les miniatures en Wi-Fi.
 | Libellé d'un champ | Appui long | Ajouter une valeur |
 | Ligne des étoiles | Appui long | Effacer la note |
 | Bandeau « Annuler » | Tap, dans les 3 s (10 s avec VoiceOver) | Revient au morceau, tags d'avant la validation |
-| ⋯ | Tap | Passe rapide (un champ, gros boutons), passage automatique, point de départ, Préparer mon trajet |
+| ⋯ | Tap | Passe rapide (un champ, gros boutons), Actualité, passage automatique, point de départ, Préparer mon trajet |
+| Actualité : pochette | Glisser à gauche / à droite | `ARCHIVE` (plus d'actualité) / d'actualité, puis morceau suivant ; tap = lecture / pause |
 
 Les AirPods et l'écran verrouillé passent au morceau suivant ou précédent.
+
+## Tri « Actualité »
+
+Bibliothèque › ⋯ › **Trier l'actualité** (ou ⋯ › **Actualité** sur l'écran Taguer) passe en revue la liste affichée, un morceau à la fois, comme Tinder :
+
+- à gauche (ou bouton boîte d'archive) : plus d'actualité, `ARCHIVE` est ajouté à la fin du COMMENT ;
+- à droite (ou bouton ✓) : d'actualité, rien n'est ajouté (un `ARCHIVE` déjà présent est retiré) ;
+- les morceaux déjà triés sont sautés ; « Annuler » revient au morceau.
+
+Comme les autres tags, c'est écrit dans les fichiers par `djtag apply` sur le Mac. Dans Serato, les crates « 🎶 GENRE 🎶 » excluent les COMMENT contenant ARCHIVE, et « 📦 ARCHIVE 📦 » les regroupe.
 
 ## Hors ligne
 

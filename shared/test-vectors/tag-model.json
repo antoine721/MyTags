@@ -244,6 +244,98 @@
      ]
     }
    ]
+  },
+  "keyword": {
+   "settings": {
+    "comment.separator": " ",
+    "comment.empty_token": "()",
+    "multi.separator": "/",
+    "rating.write_formats": [
+     "mp3",
+     "wav",
+     "aiff"
+    ]
+   },
+   "fields": [
+    {
+     "key": "pays",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 1,
+     "options": [
+      "FR",
+      "US"
+     ]
+    },
+    {
+     "key": "type",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 2,
+     "options": [
+      "CLASSIC",
+      "REMIX"
+     ]
+    },
+    {
+     "key": "actu",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": null,
+     "options": [
+      {
+       "value": "ARCHIVE",
+       "aliases": [
+        "PAS ACTU"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "keyword_dash": {
+   "settings": {
+    "comment.separator": " - ",
+    "comment.empty_token": "()",
+    "multi.separator": "/",
+    "rating.write_formats": [
+     "mp3",
+     "wav",
+     "aiff"
+    ]
+   },
+   "fields": [
+    {
+     "key": "pays",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 1,
+     "options": [
+      "FR",
+      "US"
+     ]
+    },
+    {
+     "key": "type",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": 2,
+     "options": [
+      "CLASSIC",
+      "REMIX"
+     ]
+    },
+    {
+     "key": "actu",
+     "kind": "single",
+     "target_tag": "COMMENT",
+     "target_slot": null,
+     "options": [
+      "ARCHIVE",
+      "HOT"
+     ]
+    }
+   ]
   }
  },
  "comment_parse": [
@@ -654,6 +746,128 @@
     ],
     "attribut": [
      "SEXY"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "keyword",
+   "comment": "FR CLASSIC ARCHIVE",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "CLASSIC"
+    ],
+    "actu": [
+     "ARCHIVE"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "keyword",
+   "comment": "fr archive classic",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "CLASSIC"
+    ],
+    "actu": [
+     "ARCHIVE"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "keyword",
+   "comment": "FR pas  actu CLASSIC",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "CLASSIC"
+    ],
+    "actu": [
+     "ARCHIVE"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "keyword",
+   "comment": "ARCHIVE",
+   "status": "incomplet",
+   "values": {
+    "actu": [
+     "ARCHIVE"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "keyword",
+   "comment": "FR CLASSIC",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "CLASSIC"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "keyword",
+   "comment": "FR ARCHIVES CLASSIC",
+   "status": "non_conforme",
+   "values": {},
+   "explicit_empty": []
+  },
+  {
+   "config": "keyword",
+   "comment": "FR CLASSIC SEXY ARCHIVE",
+   "status": "non_conforme",
+   "values": {
+    "actu": [
+     "ARCHIVE"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "keyword_dash",
+   "comment": "FR - CLASSIC ARCHIVE",
+   "status": "conforme",
+   "values": {
+    "pays": [
+     "FR"
+    ],
+    "type": [
+     "CLASSIC"
+    ],
+    "actu": [
+     "ARCHIVE"
+    ]
+   },
+   "explicit_empty": []
+  },
+  {
+   "config": "keyword_dash",
+   "comment": "FR - CLASSIC ARCHIVE HOT",
+   "status": "non_conforme",
+   "values": {
+    "actu": [
+     "ARCHIVE"
     ]
    },
    "explicit_empty": []
@@ -1120,6 +1334,429 @@
     "rating": null
    },
    "to_apply": true
+  },
+  {
+   "name": "keyword added to a non conforming comment kept as is",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC SEXY",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": [
+      "ARCHIVE"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC SEXY ARCHIVE",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "keyword cleared removes it",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": []
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "keyword cleared from the middle",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR ARCHIVE CLASSIC",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": []
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "keyword already in file",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": [
+      "ARCHIVE"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "to_apply": false
+  },
+  {
+   "name": "keyword cleared on comment without it keeps exact text",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR  CLASSIC",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": []
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR  CLASSIC",
+    "rating": null
+   },
+   "to_apply": false
+  },
+  {
+   "name": "keyword alias written canonical",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC pas actu",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": [
+      "ARCHIVE"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "keyword on empty comment",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": [
+      "ARCHIVE"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "ARCHIVE",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "keyword cleared on keyword only comment",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "ARCHIVE",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": []
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "slot changed keeps keyword from file",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "rows": {
+    "type": {
+     "values": [
+      "REMIX"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR REMIX ARCHIVE",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "slot and keyword changed together",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "US REMIX",
+    "rating": null
+   },
+   "rows": {
+    "pays": {
+     "values": [
+      "FR"
+     ]
+    },
+    "actu": {
+     "values": [
+      "ARCHIVE"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR REMIX ARCHIVE",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "keyword joined by a space whatever the separator",
+   "config": "keyword_dash",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR - CLASSIC",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": [
+      "ARCHIVE"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR - CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "slot edit keeps keyword with dash separator",
+   "config": "keyword_dash",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR - CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "rows": {
+    "type": {
+     "values": [
+      "REMIX"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR - REMIX ARCHIVE",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "keyword cleared with dash separator",
+   "config": "keyword_dash",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR - CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": []
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR - CLASSIC",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "second word of a keyword field stays as text",
+   "config": "keyword_dash",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR - CLASSIC ARCHIVE HOT",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": []
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR - CLASSIC HOT",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "keyword on null comment",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": null,
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": [
+      "ARCHIVE"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "ARCHIVE",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "trailing spaces dropped before the keyword",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC  ",
+    "rating": null
+   },
+   "rows": {
+    "actu": {
+     "values": [
+      "ARCHIVE"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "to_apply": true
+  },
+  {
+   "name": "keyword written once is stable",
+   "config": "keyword",
+   "format": "mp3",
+   "baseline": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "rows": {
+    "type": {
+     "values": [
+      "CLASSIC"
+     ]
+    },
+    "actu": {
+     "values": [
+      "ARCHIVE"
+     ]
+    }
+   },
+   "targets": {
+    "genre": null,
+    "grouping": null,
+    "comment": "FR CLASSIC ARCHIVE",
+    "rating": null
+   },
+   "to_apply": false
   }
  ],
  "title_contains": [
