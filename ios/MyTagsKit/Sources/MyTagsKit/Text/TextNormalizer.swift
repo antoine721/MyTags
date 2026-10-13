@@ -48,6 +48,29 @@ public enum TextNormalizer {
         return String(scalars[first...last])
     }
 
+    /// Whitespace-separated words, like Python's `str.split()`.
+    static func words(_ text: String) -> [String] {
+        var result: [String] = []
+        var current = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            if isWhitespace(scalar) {
+                if !current.isEmpty { result.append(String(current)) }
+                current = String.UnicodeScalarView()
+            } else {
+                current.append(scalar)
+            }
+        }
+        if !current.isEmpty { result.append(String(current)) }
+        return result
+    }
+
+    /// Removes trailing whitespace, like Python's `str.rstrip()`.
+    static func trimEnd(_ text: String) -> String {
+        let scalars = text.unicodeScalars
+        guard let last = scalars.lastIndex(where: { !isWhitespace($0) }) else { return "" }
+        return String(scalars[...last])
+    }
+
     static func scalars(_ text: String) -> [Unicode.Scalar] {
         Array(text.unicodeScalars)
     }

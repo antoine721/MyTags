@@ -11,6 +11,8 @@ final class TagSessionModel {
     enum Mode: Equatable {
         case full
         case quickPass(fieldID: String)
+        /// "Actualité" sorting, one swipe per track: left adds the keyword option, right keeps the track.
+        case swipe(fieldID: String, optionID: String)
     }
 
     struct Undo: Equatable {
@@ -176,6 +178,7 @@ final class TagSessionModel {
         if case let .quickPass(fieldID) = mode, store.snapshots[id]?.confirmedFieldIDs.contains(fieldID) == true {
             return false
         }
+        if case let .swipe(fieldID, _) = mode, isDecided(id, fieldID: fieldID) { return false }
         if !app.sync.isOnline, app.settings.skipUnavailableOffline, !app.cache.offlineIDs.contains(id) { return false }
         return true
     }
@@ -396,8 +399,9 @@ final class TagSessionModel {
         show(autoplay: app.player.isPlaying)
     }
 
+    /// Leaves the quick pass or the swipe mode, back on the full queue at the current track.
     func stopQuickPass() {
-        guard case .quickPass = mode else { return }
+        guard mode != .full else { return }
         mode = .full
         if let fullQueue, let id = queue.currentTrackID ?? fullQueue.currentTrackID {
             var restored = fullQueue
@@ -425,6 +429,45 @@ final class TagSessionModel {
         let index = queue.currentIndex
         next(autoplay: true)
         showUndo(Undo(trackID: track.id, index: index, restore: restore, label: option.displayLabel))
+    }
+
+    // MARK: Swipe ("Actualité")
+
+    /// Swipe mode on the rest of the queue: only tracks never sorted (no value, not even cleared).
+    /// `showing: false` before `begin(autoplay:)`, which loads the first track itself.
+    func startSwipe(field: Field, option: FieldOption, showing: Bool = true) {
+        fullQueue = fullQueue ?? queue
+        let remaining = Array(queue.trackIDs[min(queue.currentIndex, queue.count)...])
+        mode = .swipe(fieldID: field.id, optionID: option.id)
+        queue = TagQueue(trackIDs: remaining.filter { !isDecided($0, fieldID: field.id) })
+        if showing { show(autoplay: app.player.isPlaying) }
+    }
+
+    /// A confirmed value or a row, even an empty one ("d'actualité"), means the track was sorted.
+    private func isDecided(_ id: String, fieldID: String) -> Bool {
+        if store.snapshots[id]?.confirmedFieldIDs.contains(fieldID) == true { return true }
+        if let row = store.rows[id]?[fieldID], !row.isDeleted { return true }
+        return false
+    }
+
+    /// Left: the keyword option ("ARCHIVE"); right: an empty value, the track stays current.
+    func swipe(archive: Bool) {
+        guard case let .swipe(fieldID, optionID) = mode, let track = currentTrack else { return }
+        app.sessions.tap()
+        let previous = store.rows[track.id]?[fieldID]
+        let restore = [RestoreEdit(
+            fieldID: fieldID, value: previous?.isDeleted == false ? previous?.value : nil,
+            source: previous?.isDeleted == false ? previous!.source : .file)]
+        let value = archive ? FieldValue.option(optionID) : FieldValue()
+        guard store.apply([ValueEdit(trackID: track.id, fieldID: fieldID, value: value, source: .user)]) else {
+            Haptics.shared.error()
+            return
+        }
+        app.sessions.validated(accepted: 0, manual: 1)
+        Haptics.shared.success()
+        let index = queue.currentIndex
+        next(autoplay: true)
+        showUndo(Undo(trackID: track.id, index: index, restore: restore, label: archive ? "Archivé" : "D'actualité"))
     }
 
     // MARK: New values (B-16)

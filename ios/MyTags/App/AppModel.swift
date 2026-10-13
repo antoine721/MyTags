@@ -244,12 +244,14 @@ final class AppModel {
     // MARK: Tag screen
 
     /// Opens the Tag screen on `trackIDs` (frozen queue), starting at `startID`.
+    /// With `swipe`, opens directly in "Actualité" sorting on that keyword field and value.
     func openTagScreen(trackIDs: [String], title: String, startAt startID: String? = nil, skipComplete: Bool = false,
-                       autoplay: Bool = true) {
+                       autoplay: Bool = true, swipe: (Field, FieldOption)? = nil) {
         guard !trackIDs.isEmpty else { return }
         var queue = TagQueue(trackIDs: trackIDs)
         if let startID, let index = queue.index(of: startID) { queue.move(to: index) }
         let session = TagSessionModel(app: self, queue: queue, title: title, skipComplete: skipComplete)
+        if let (field, option) = swipe { session.startSwipe(field: field, option: option, showing: false) }
         tagSession = session
         isTagScreenPresented = true
         session.begin(autoplay: autoplay)

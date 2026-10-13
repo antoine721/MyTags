@@ -67,7 +67,7 @@ struct FieldListView: View {
 
 func targetDescription(_ field: Field) -> String {
     switch field.targetTag {
-    case .comment: "COMMENT, position \(field.targetSlot ?? 0)"
+    case .comment: field.targetSlot.map { "COMMENT, position \($0)" } ?? "COMMENT, mot-clé"
     case .rating: "Note"
     default: field.targetTag.rawValue
     }
@@ -102,6 +102,7 @@ struct FieldEditorView: View {
                         ForEach(1...max(3, config.commentSlotCount + 1), id: \.self) { slot in
                             Text("COMMENT, position \(slot)").tag("COMMENT:\(slot)")
                         }
+                        Text("COMMENT, mot-clé").tag("COMMENT:")
                         Text("Note").tag("RATING")
                     }
                 }
@@ -206,7 +207,7 @@ struct FieldEditorView: View {
 
     private func targetBinding(_ field: Field) -> Binding<String> {
         Binding(
-            get: { field.targetTag == .comment ? "COMMENT:\(field.targetSlot ?? 1)" : field.targetTag.rawValue },
+            get: { field.targetTag == .comment ? "COMMENT:\(field.targetSlot.map(String.init) ?? "")" : field.targetTag.rawValue },
             set: { value in
                 update(field) { f in
                     if value.hasPrefix("COMMENT:") {

@@ -95,15 +95,27 @@ def compute_targets(
 
     comment = baseline.comment
     comment_fields = config.comment_fields()
-    if any(f.id in rows for f in comment_fields):
+    keyword_fields = config.keyword_fields()
+    if any(f.id in rows for f in (*comment_fields, *keyword_fields)):
         parsed = parse_comment(baseline.comment, config)
-        slot_values: dict[str, FieldValue | None] = {}
-        for f in comment_fields:
-            if f.id in rows:
-                slot_values[f.id] = rows[f.id]
-            elif parsed.is_readable:
-                slot_values[f.id] = parsed.values.get(f.id)
-        comment = compose_comment(slot_values, config)
+        if any(f.id in rows for f in comment_fields):
+            slot_values: dict[str, FieldValue | None] = {}
+            for f in comment_fields:
+                if f.id in rows:
+                    slot_values[f.id] = rows[f.id]
+                elif parsed.is_readable:
+                    slot_values[f.id] = parsed.values.get(f.id)
+            base = compose_comment(slot_values, config)
+        else:
+            base = parsed.rest or ""
+        keywords: list[str] = []
+        for f in keyword_fields:
+            value = rows[f.id] if f.id in rows else parsed.values.get(f.id)
+            texts = option_texts(value, config) if value else []
+            if texts:
+                keywords.append(texts[0])
+        # Keywords are words: always joined by one space, whatever the COMMENT separator.
+        comment = " ".join([base.rstrip(), *keywords]).strip() if keywords else base
     return Baseline(genre=genre, grouping=grouping, comment=comment, rating=rating)
 
 
