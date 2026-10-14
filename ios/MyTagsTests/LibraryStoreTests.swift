@@ -27,7 +27,9 @@ import Testing
 
     @Test func loadsTracksAndConfig() {
         #expect(store.tracks.count == 1)
-        #expect(store.config.fields.count == 6)
+        #expect(store.config.fields.count == config.fields.count)
+        // The hidden "Actualité" field stays off the Tag panel.
+        #expect(store.config.visibleFields.count == 6)
         #expect(store.snapshots["t1"]?.isIncomplete == true)
     }
 
