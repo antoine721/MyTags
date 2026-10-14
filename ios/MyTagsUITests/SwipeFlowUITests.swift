@@ -17,17 +17,29 @@ final class SwipeFlowUITests: XCTestCase {
 
     private func openSwipe() {
         XCTAssertTrue(app.buttons.matching(identifier: "trackRow").firstMatch.waitForExistence(timeout: 20))
-        // The demo audio is generated at launch: the first menu tap can be dropped. While the menu
-        // opens, the item already exists but has no frame yet: wait until it can be tapped.
-        let sort = app.buttons["Trier l'actualité"]
-        let tappable = NSPredicate(format: "exists == true AND hittable == true")
-        for _ in 0..<3 where !(sort.exists && sort.isHittable) {
+        // The demo audio is generated at launch: the first menu tap can be dropped.
+        var found = visibleSortItem()
+        for _ in 0..<3 where found == nil {
             app.buttons["libraryMenu"].tap()
-            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: tappable, object: sort)], timeout: 3)
+            let deadline = Date().addingTimeInterval(3)
+            repeat {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+                found = visibleSortItem()
+            } while found == nil && Date() < deadline
         }
+        guard let sort = found else { return XCTFail("« Trier l'actualité » never appeared on screen") }
         sort.tap()
         XCTAssertTrue(app.buttons["archiveButton"].waitForExistence(timeout: 5))
         snap("swipe-1-carte")
+    }
+
+    /// The menu item once it is on screen. The items of a closed toolbar menu can stay in the
+    /// accessibility tree with an infinite, empty frame: existence alone does not mean visible,
+    /// and asking such an element whether it is hittable fails the test.
+    private func visibleSortItem() -> XCUIElement? {
+        app.buttons.matching(NSPredicate(format: "label == %@", "Trier l'actualité"))
+            .allElementsBoundByIndex
+            .first { $0.exists && !$0.frame.isEmpty }
     }
 
     func testSwipeLeftArchivesAndUndoComesBack() {
