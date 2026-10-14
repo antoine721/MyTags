@@ -17,11 +17,13 @@ final class SwipeFlowUITests: XCTestCase {
 
     private func openSwipe() {
         XCTAssertTrue(app.buttons.matching(identifier: "trackRow").firstMatch.waitForExistence(timeout: 20))
-        // The demo audio is generated at launch: the first menu tap can be dropped.
+        // The demo audio is generated at launch: the first menu tap can be dropped. While the menu
+        // opens, the item already exists but has no frame yet: wait until it can be tapped.
         let sort = app.buttons["Trier l'actualité"]
-        for _ in 0..<3 where !sort.exists {
+        let tappable = NSPredicate(format: "exists == true AND hittable == true")
+        for _ in 0..<3 where !(sort.exists && sort.isHittable) {
             app.buttons["libraryMenu"].tap()
-            _ = sort.waitForExistence(timeout: 3)
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: tappable, object: sort)], timeout: 3)
         }
         sort.tap()
         XCTAssertTrue(app.buttons["archiveButton"].waitForExistence(timeout: 5))
